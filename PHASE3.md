@@ -48,9 +48,11 @@ Status: built and tested against the SIMULATOR only. No command was sent to the 
 - **Tests:** 17 new tests (130 in all). Includes the staged ladders on the simulator, the exact bytes, over-limit refusals, the unlock gate, the engine failing safe if the belt restarts at its previous speed, and a Stage B run with pause and resume. The real page was also driven against the simulator for Stage A, and for Stage B through a test-only server that enables it.
 - Raising the validated limits (which is what makes the five presets runnable) remains a separate step after Stage B is recorded and approved.
 
-### Stage A hardware results (validate page v1, belt empty) — SPEED PART DONE, INCLINE PART NOT RUN
+### Stage A hardware results (validate page v1, belt empty) — COMPLETE (speed run, then incline run)
 
-What was run: take control, start, speed 1.0 / 1.4 / 2.0 mph, stop from 2.0 mph, start again, speed 2.0 from the minimum, stop. User notes: console matched each step; each change felt instant. No lockouts. Incline was never commanded (all readings 0 %), so **incline 2 and 5 are still unvalidated**.
+What was run: take control, start, speed 1.0 / 1.4 / 2.0 mph, stop from 2.0 mph, start again, speed 2.0 from the minimum, stop. User notes: console matched each step; each change felt instant. No lockouts.
+
+Incline follow-up run (separate session, belt at its minimum speed): incline **2, then 5, then 0** each acknowledged in 0.1 to 0.2 s and confirmed by the readings within 0.5 to 1.1 s (readings 2 %, 5 %, 0 %). User note: "each incline function works instantly". Stop at the minimum speed confirmed in 2.6 s. No lockouts, no refusals, no telemetry gaps over 1.8 s in that run. Caveat: the readings follow the target within a second, so how long the ramp physically takes is known only from the user's "instantly"; incline above 5 and a drop from 5 to 2 (as opposed to 5 to 0) were not run.
 
 | Question | Result |
 |---|---|
