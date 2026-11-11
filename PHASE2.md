@@ -40,9 +40,13 @@ Three runs on the real treadmill, all with no lockouts and no retries. Replies c
 | Incline 1, 2, 0 | `03 0a 00`, `03 14 00`, `03 00 00` | Acknowledged. Readings confirmed **1 %, 2 %, 0 %**, each within 0.1 s of the acknowledgment. |
 | Stop | `08 01` | Acknowledged. Machine status "stopped" and speed 0 about 2.4 to 3.2 s later. |
 
+Confirmed by the user after the run:
+- The console readings matched the page (speed and incline level). Exact console values were reported as "correct", not written down per step.
+- The incline ramp physically moved up and down as commanded.
+
 Caveats on what this proves:
-- Incline readings changed almost instantly, so they show the treadmill accepted the target. They do not by themselves show the ramp physically moved.
-- Console display values (mph and incline level) were not recorded, so "0.8 mph on the page equals 0.8 on the console" and "incline level N equals N %" remain unconfirmed.
+- Incline readings changed almost instantly after each command, so they follow the treadmill's target. The user separately saw the ramp move, so the commanded level is being applied.
+- Incline level N equalling N % rests on the user's "read correctly" and the matching 0-12 ranges; per-step values were not logged.
 - Once, with the belt idle and control held, speed readings paused for more than 3 s (the page correctly refused to send). Not seen while the belt was running. Builds c2 and c3 add gap logging.
 - Not tested on hardware: disconnecting while the belt runs, locked screen or backgrounded page, anything above 1.0 mph or incline 2, a failure lockout, two reconnects in a row.
 
