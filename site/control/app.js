@@ -2,10 +2,11 @@
 // sent lives in controller.js, and every byte is built by protocol.js.
 import { Controller } from './controller.js?v=c6';
 import { routeNotification } from './bridge.js?v=c6';
+import { wireTwoStep } from './confirm.js?v=c7';
 import { LIMITS, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c6';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
 
-const BUILD = 'c6';
+const BUILD = 'c7';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const SPEEDS_MPH = [0.6, 0.7, 0.8, 0.9, 1.0];
@@ -16,6 +17,7 @@ const events = [];
 let device = null;
 let cp = null; // control point characteristic
 let lastSnap = null;
+let startConfirm = null; // two-step Start confirmation: it does not freeze the page the way the browser dialog does
 
 const clock = { now: () => performance.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id) };
 const transport = { write: (bytes) => { if (!cp) throw new Error('not connected'); return cp.writeValue(bytes); } };
@@ -92,6 +94,7 @@ function render(snap) {
   $('bControl').classList.toggle('attn', snap.recovery && snap.buttons.takeControl.ok);
   $('bStop').classList.toggle('attn', snap.recovery && snap.buttons.stop.ok);
   $('reset').disabled = !!snap.pending;
+  if (!snap.buttons.start.ok) startConfirm?.cancel(); // never leave a Start armed once it is no longer allowed
 
   const kmh = snap.tele.speedKmh;
   $('vSpeed').textContent = kmh == null ? '—' : `${kmh.toFixed(2)} km/h · ${kmhToMph(kmh).toFixed(2)} mph`; // mph as the treadmill's console shows it
@@ -137,9 +140,10 @@ for (const lvl of INCLINES) {
 $('connect').addEventListener('click', connect);
 $('disconnect').addEventListener('click', disconnect);
 $('bControl').addEventListener('click', () => run('Take control', ctl.takeControl()));
-$('bStart').addEventListener('click', () => {
-  if (!window.confirm('The belt will start in about 3 seconds. Is the belt empty, and are you standing beside it with the remote or safety key in reach?')) return;
-  run('Start', ctl.start());
+startConfirm = wireTwoStep($('bStart'), $('startWarn'), {
+  clock, label: 'Start belt', armedLabel: 'TAP AGAIN to start the belt',
+  warning: 'The belt will start in about 3 seconds. Is the belt empty, and are you standing beside it with the remote or safety key in reach? Tap again to start, or wait to cancel.',
+  onConfirm: () => run('Start', ctl.start()),
 });
 $('bStop').addEventListener('click', () => run('Stop', ctl.stop()));
 $('reset').addEventListener('click', () => { const r = ctl.resetLock(); log(r.ok ? 'Reset test: OK' : `Reset test: refused (${r.reason})`); });

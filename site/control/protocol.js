@@ -7,7 +7,10 @@ export const OP = Object.freeze({ REQUEST_CONTROL: 0x00, SET_SPEED: 0x02, SET_IN
 
 export const RESULT_TEXT = Object.freeze({ 1: 'success', 2: 'op code not supported', 3: 'invalid parameter', 4: 'operation failed', 5: 'control not permitted' });
 
-/** Hard caps for the Phase 2 test. Not user-editable on the page. */
+/**
+ * Hard caps for the Phase 2 control page (belt-empty test). Not user-editable on the page. The workout engine's
+ * validated ceiling is separate and higher: see workout/limits.js (VERIFIED_LIMITS).
+ */
 export const LIMITS = Object.freeze({ maxMph: 1.0, maxInclineLevel: 2 });
 
 /**

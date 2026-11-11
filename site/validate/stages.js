@@ -1,6 +1,6 @@
-// Staged hardware-validation definitions. These limits are NOT validated: they are the values the stages exist to
-// test, on a dedicated page, belt empty. VERIFIED_LIMITS (workout/limits.js) stays at the Phase 2 values and is only
-// raised after a stage has been run, recorded and approved.
+// Staged hardware-validation definitions. These are the values the stages exist to
+// test, on a dedicated page, belt empty. VERIFIED_LIMITS (workout/limits.js) is raised only after a stage has been run,
+// recorded and approved. Stages A and B have been, so it now equals Stage B's limits.
 //
 // Each stage needs its own approval. That is enforced here: a stage that is not listed in ENABLED_STAGES cannot be
 // unlocked by the page. ENABLED_STAGES is changed (and the page redeployed) only after the previous stage's results

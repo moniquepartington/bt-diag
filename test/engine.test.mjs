@@ -7,9 +7,10 @@ import { makeRig, settle, run, until, flush } from './rig.js';
 import { WorkoutEngine, STATE } from '../site/workout/engine.js';
 import { PRESETS } from '../site/workout/presets.js';
 import { VERIFIED_LIMITS } from '../site/workout/limits.js';
+import { LIMITS as PHASE2_LIMITS } from '../site/control/protocol.js';
 import { validateWorkout, checkAgainstLimits, totalSeconds, mmss, CATEGORIES } from '../site/workout/workout.js';
 
-/** TEST-ONLY limits so presets can run on the simulator. Production uses VERIFIED_LIMITS (1.0 mph, incline 2). */
+/** TEST-ONLY limits, looser than anything validated. Real runs use VERIFIED_LIMITS (2.8 mph, incline 8). */
 const SIM_LIMITS = { maxMph: 5.0, maxInclineLevel: 12 };
 const hexs = (b) => b.map((x) => x.toString(16).padStart(2, '0')).join(' ');
 const mini = (...specs) => ({ name: 'mini', intervals: specs.map(([category, durationSec, speedMph, inclineLevel]) => ({ category, durationSec, speedMph, inclineLevel })) });
@@ -72,50 +73,58 @@ test('validation rejects durations that are not multiples of 5 s, and other bad 
 });
 
 // ======================= hardware limits are separate from presets =======================
-test('LIMITS: every preset exceeds the verified hardware limits, so none can start on real hardware yet', () => {
-  assert.deepEqual({ ...VERIFIED_LIMITS }, { maxMph: 1.0, maxInclineLevel: 2 });
+test('LIMITS: the verified limits are the validated Stage B ceiling, frozen, and exactly the top of the presets', () => {
+  assert.deepEqual({ ...VERIFIED_LIMITS }, { maxMph: 2.8, maxInclineLevel: 8 });
   assert.ok(Object.isFrozen(VERIFIED_LIMITS));
-  for (const p of PRESETS) {
-    const v = checkAgainstLimits(p, VERIFIED_LIMITS);
-    assert.ok(v.length > 0, `${p.name} should exceed the verified limits`);
-    assert.ok(v.every((x) => x.value > x.limit));
-  }
+  assert.equal(Math.max(...PRESETS.flatMap((p) => p.intervals.map((i) => i.speedMph))), VERIFIED_LIMITS.maxMph);
+  assert.equal(Math.max(...PRESETS.flatMap((p) => p.intervals.map((i) => i.inclineLevel))), VERIFIED_LIMITS.maxInclineLevel);
+  for (const p of PRESETS) assert.deepEqual(checkAgainstLimits(p, VERIFIED_LIMITS), [], `${p.name} is inside the verified limits`);
 });
 
-test('LIMITS: with the real limits the engine refuses all five presets and sends nothing', async () => {
-  const rig = engineRig({}, { limits: VERIFIED_LIMITS, controllerLimits: undefined });
+test('LIMITS: the Phase 2 control page keeps its own, lower caps, which every preset exceeds', () => {
+  assert.deepEqual({ ...PHASE2_LIMITS }, { maxMph: 1.0, maxInclineLevel: 2 });
+  assert.ok(PHASE2_LIMITS.maxMph < VERIFIED_LIMITS.maxMph && PHASE2_LIMITS.maxInclineLevel < VERIFIED_LIMITS.maxInclineLevel);
+  for (const p of PRESETS) assert.ok(checkAgainstLimits(p, PHASE2_LIMITS).length > 0, p.name);
+});
+
+test('LIMITS: on the verified limits all five presets load, and loading sends nothing', () => {
+  const rig = engineRig({}, { limits: VERIFIED_LIMITS });
   for (const p of PRESETS) {
-    const r = rig.engine.load(p);
-    assert.equal(r.ok, false, p.name);
-    assert.equal(r.reason, 'exceeds verified hardware limits');
-    assert.ok(r.violations.length > 0);
-    assert.equal(rig.engine.state, STATE.IDLE);
-    assert.equal((await rig.engine.begin()).ok, false, 'cannot start a refused workout');
+    assert.equal(rig.engine.load(p).ok, true, p.name);
+    assert.equal(rig.engine.state, STATE.READY);
   }
   assert.equal(rig.written.length, 0);
 });
 
-test('LIMITS: a workout inside the verified limits loads and runs to completion on the real limits', async () => {
-  const ok = mini(['Warmup', 10, 0.6, 0], ['Training', 10, 1.0, 2], ['Cooldown', 10, 0.8, 1]);
-  assert.deepEqual(checkAgainstLimits(ok, VERIFIED_LIMITS), []);
-  const rig = engineRig({}, { limits: VERIFIED_LIMITS, controllerLimits: undefined });
-  assert.equal(rig.engine.load(ok).ok, true);
+test('LIMITS: a workout above the verified limits is refused, never clamped, and nothing is sent', async () => {
+  const rig = engineRig({}, { limits: VERIFIED_LIMITS });
+  const r1 = rig.engine.load(mini(['Warmup', 10, 2.9, 0]));
+  assert.deepEqual(r1.violations, [{ interval: 1, field: 'speedMph', value: 2.9, limit: 2.8 }]);
+  const r2 = rig.engine.load(mini(['Warmup', 10, 2.8, 9]));
+  assert.deepEqual(r2.violations, [{ interval: 1, field: 'inclineLevel', value: 9, limit: 8 }]);
+  const r3 = rig.engine.load(mini(['Warmup', 10, 3.5, 12], ['Training', 10, 1.0, 0]));
+  assert.equal(r3.violations.length, 2);
+  assert.equal(rig.engine.state, STATE.IDLE);
+  assert.equal((await rig.engine.begin()).ok, false, 'cannot start a refused workout');
+  assert.equal(rig.written.length, 0);
+});
+
+test('LIMITS: a workout exactly at the verified limits is accepted and runs to completion', async () => {
+  const top = mini(['Warmup', 10, 2.8, 8], ['Cooldown', 10, 0.6, 0]);
+  const rig = engineRig({}, { limits: VERIFIED_LIMITS });
+  assert.equal(rig.engine.load(top).ok, true);
   assert.equal((await settle(rig, rig.engine.begin(), 40000)).ok, true);
   assert.equal(await until(rig, () => rig.engine.state === STATE.COMPLETED, 60000), true);
   assert.equal(rig.ctl.lock, null);
 });
 
-test('LIMITS: just over the limit is refused (1.1 mph, incline 3) and nothing is clamped', () => {
-  const rig = engineRig({}, { limits: VERIFIED_LIMITS, controllerLimits: undefined });
-  const r1 = rig.engine.load(mini(['Warmup', 10, 1.1, 0]));
-  assert.deepEqual(r1.violations, [{ interval: 1, field: 'speedMph', value: 1.1, limit: 1.0 }]);
-  const r2 = rig.engine.load(mini(['Warmup', 10, 1.0, 3]));
-  assert.deepEqual(r2.violations, [{ interval: 1, field: 'inclineLevel', value: 3, limit: 2 }]);
-});
-
 test('LIMITS: the engine cannot be configured looser than the control layer', () => {
-  const rig = makeRig({}); // control layer on the real (verified) limits
-  assert.throws(() => new WorkoutEngine({ controller: rig.ctl, clock: rig.clock, limits: SIM_LIMITS }), /looser than the control layer/);
+  const phase2 = makeRig({}); // a control layer on the Phase 2 caps
+  assert.throws(() => new WorkoutEngine({ controller: phase2.ctl, clock: phase2.clock }), /looser than the control layer/, 'the default (verified) limits are looser than the Phase 2 caps');
+  assert.throws(() => new WorkoutEngine({ controller: phase2.ctl, clock: phase2.clock, limits: SIM_LIMITS }), /looser than the control layer/);
+  const real = makeRig({}, { limits: VERIFIED_LIMITS });
+  assert.throws(() => new WorkoutEngine({ controller: real.ctl, clock: real.clock, limits: SIM_LIMITS }), /looser than the control layer/);
+  assert.doesNotThrow(() => new WorkoutEngine({ controller: real.ctl, clock: real.clock }), 'a controller on the verified limits works with the default');
 });
 
 test('LIMITS: presets carry no limits and do not import them; the limits object is frozen', () => {
@@ -126,7 +135,19 @@ test('LIMITS: presets carry no limits and do not import them; the limits object 
   assert.throws(() => { 'use strict'; VERIFIED_LIMITS.maxMph = 5; }, TypeError);
 });
 
-test('LIMITS: the control layer would still refuse an over-limit command even if the engine were bypassed', async () => {
+test('LIMITS: the control layer on the verified limits still refuses over-limit commands if the engine were bypassed', async () => {
+  const rig = makeRig({}, { limits: VERIFIED_LIMITS });
+  assert.equal((await settle(rig, rig.ctl.takeControl())).ok, true);
+  assert.equal((await settle(rig, rig.ctl.start())).ok, true);
+  const n = rig.written.length;
+  assert.equal((await rig.ctl.setSpeedMph(2.9)).sent, false);
+  assert.equal((await rig.ctl.setInclineLevel(9)).sent, false);
+  assert.equal(rig.written.length, n);
+  assert.equal((await settle(rig, rig.ctl.setSpeedMph(2.8))).ok, true);
+  assert.equal((await settle(rig, rig.ctl.setInclineLevel(8))).ok, true);
+});
+
+test('LIMITS: a controller on the Phase 2 caps still refuses engine-level targets', async () => {
   const rig = makeRig({});
   assert.equal((await rig.ctl.setSpeedMph(2.0)).ok, false);
   assert.equal((await rig.ctl.setInclineLevel(5)).ok, false);
@@ -168,7 +189,7 @@ test('RUN: every command is serialized, and each boundary sends its commands exa
 
 test('RUN: all five presets run to completion on the simulator in 20:00, in order, with no duplicate commands', async () => {
   for (const preset of PRESETS) {
-    const rig = engineRig();
+    const rig = engineRig({}, { limits: VERIFIED_LIMITS }); // the presets run on the REAL verified limits
     rig.engine.load(preset);
     await settle(rig, rig.engine.begin(), 40000);
     const tStart = rig.clock.now();

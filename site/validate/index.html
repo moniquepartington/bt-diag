@@ -94,7 +94,7 @@
   <div class="why" id="limitsNote">Unlock a stage first.</div>
   <div class="step"><b>Take control</b><div class="row"><button id="bControl" disabled>Take control</button></div><div class="why" id="wControl"></div></div>
   <div class="step"><b>Start</b><span class="why">3-second countdown, then the belt runs. After a Stop, note the speed it restarts at (shown above).</span>
-    <div class="row"><button id="bStart" disabled>Start belt</button></div><div class="why" id="wStart"></div></div>
+    <div class="row"><button id="bStart" disabled>Start belt</button></div><div class="why" id="wStart"></div><div class="why warn" id="startWarn"></div></div>
   <div class="step"><b>Speed (mph)</b><span class="why">Compare each reading with the console.</span>
     <div class="row" id="speedRow"></div><div class="why" id="wSpeed"></div></div>
   <div class="step"><b>Incline (level)</b><div class="row" id="inclineRow"></div><div class="why" id="wIncline"></div></div>
@@ -117,6 +117,7 @@
     <button id="eStop" class="danger" disabled>Stop workout</button>
     <button id="eAck" disabled>Belt is stopped: close fault</button>
   </div>
+  <div class="why warn" id="beginWarn"></div>
   <div class="why" id="eNote"></div>
 </section>
 
@@ -133,6 +134,6 @@
   <div id="log"></div>
 </section>
 
-<script type="module" src="./app.js?v=v2"></script>
+<script type="module" src="./app.js?v=v3"></script>
 </body>
 </html>

@@ -3,13 +3,14 @@
 // built by control/protocol.js. A stage's raised limits exist only inside the Controller created for that stage.
 import { Controller } from '../control/controller.js?v=c6';
 import { routeNotification } from '../control/bridge.js?v=c6';
+import { wireTwoStep } from '../control/confirm.js?v=c7';
 import { MPH_TO_KMH, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from '../control/protocol.js?v=c6';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
-import { WorkoutEngine, STATE } from '../workout/engine.js?v=v2';
+import { WorkoutEngine, STATE } from '../workout/engine.js?v=v3';
 import { STAGES, ENABLED_STAGES, unlockStage, unlockPhrase } from './stages.js?v=v2';
 import { restartVerdict, TelemetryLog } from './observe.js?v=v2';
 
-const BUILD = 'v2';
+const BUILD = 'v3';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const TRAINING_NAMES = { 0x01: 'Idle', 0x0d: 'Running', 0x0e: 'Countdown', 0x0f: 'Finished' };
@@ -25,6 +26,8 @@ let cp = null; // control point characteristic
 let lastSnap = null;
 let lastEngineSnap = null;
 let lastManual = true;
+let startConfirm = null; // two-step confirmations: they do not freeze the page the way the browser dialog does
+let beginConfirm = null;
 let lastTargetKmh = null;
 let startCount = 0;
 let generation = 0;
@@ -152,7 +155,6 @@ async function runIncline(level) {
   await timed(`Incline ${from} → ${level}`, ctl.setInclineLevel(level));
 }
 async function runStart() {
-  if (!window.confirm('The belt will start in about 3 seconds. Is the belt empty, and are you standing beside it with the remote or safety key in reach?')) return;
   const r = await timed('Start', ctl.start());
   if (!r.ok) return;
   startCount += 1;
@@ -194,6 +196,7 @@ function render(snap) {
   setBtn($('bControl'), $('wControl'), b.takeControl);
   setBtn($('bStart'), $('wStart'), b.start);
   setBtn($('bStop'), $('wStop'), b.stop);
+  if ($('bStart').disabled) startConfirm?.cancel(); // never leave a Start armed once it is no longer allowed
   for (const el of document.querySelectorAll('[data-speed]')) el.disabled = !allow || !b.setSpeed.ok || !validSpeed(+el.dataset.speed);
   for (const el of document.querySelectorAll('[data-incline]')) el.disabled = !allow || !b.setIncline.ok || !validIncline(+el.dataset.incline);
   $('wSpeed').textContent = b.setSpeed.ok ? '' : b.setSpeed.why;
@@ -218,6 +221,7 @@ function renderEngine(s) {
   $('eResume').disabled = st !== STATE.PAUSED || !connected;
   $('eStop').disabled = ![STATE.STARTING, STATE.RUNNING, STATE.PAUSING, STATE.PAUSED, STATE.RESUMING, STATE.FAULTED].includes(st);
   $('eAck').disabled = st !== STATE.FAULTED;
+  if ($('eBegin').disabled) beginConfirm?.cancel();
   // Manual buttons switch off while a workout is active and back on afterwards.
   const manual = MANUAL_OK_STATES.includes(st);
   if (manual !== lastManual) { lastManual = manual; if (lastSnap) render(lastSnap); }
@@ -231,14 +235,19 @@ async function runEngine(label, promise) {
 $('connect').addEventListener('click', connect);
 $('disconnect').addEventListener('click', disconnect);
 $('bControl').addEventListener('click', () => timed('Take control', ctl.takeControl()));
-$('bStart').addEventListener('click', runStart);
+startConfirm = wireTwoStep($('bStart'), $('startWarn'), {
+  clock, label: 'Start belt', armedLabel: 'TAP AGAIN to start the belt',
+  warning: 'The belt will start in about 3 seconds. Is the belt empty, and are you standing beside it with the remote or safety key in reach? Tap again to start, or wait to cancel.',
+  onConfirm: runStart,
+});
 $('bStop').addEventListener('click', () => timed('Stop', ctl.stop()));
 $('reset').addEventListener('click', () => { const r = ctl.resetLock(); log(r.ok ? 'Reset test: OK' : `Reset test: refused (${r.reason})`); });
 for (const box of document.querySelectorAll('.arm')) box.addEventListener('change', () => ctl?.setArmed([...document.querySelectorAll('.arm')].every((x) => x.checked)));
 $('eLoad').addEventListener('click', () => { const r = engine.load(stage.workout); log(r.ok ? 'Workout loaded.' : `Workout refused: ${r.reason}`); renderEngine(engine.snapshot()); });
-$('eBegin').addEventListener('click', () => {
-  if (!window.confirm('The workout will start the belt (3-second countdown) and then change speed and incline on its own. Belt empty, and you are beside it with the remote or safety key in reach?')) return;
-  runEngine('Workout start', engine.begin());
+beginConfirm = wireTwoStep($('eBegin'), $('beginWarn'), {
+  clock, label: 'Start workout', armedLabel: 'TAP AGAIN to start the workout',
+  warning: 'The workout will start the belt (3-second countdown) and then change speed and incline on its own. Belt empty, and you are beside it with the remote or safety key in reach? Tap again to start, or wait to cancel.',
+  onConfirm: () => runEngine('Workout start', engine.begin()),
 });
 $('ePause').addEventListener('click', () => runEngine('Pause', engine.pause()));
 $('eResume').addEventListener('click', () => runEngine('Resume', engine.resume()));

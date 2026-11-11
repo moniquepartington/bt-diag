@@ -9,7 +9,7 @@
 //  * Any failure, disconnect, lockout, suspension or timer gap puts the engine in FAULTED. It never retries, never
 //    resumes by itself and never restarts the belt. The remote or safety key stays the real emergency stop.
 import { validateWorkout, checkAgainstLimits, totalSeconds } from './workout.js';
-import { VERIFIED_LIMITS } from './limits.js';
+import { VERIFIED_LIMITS } from './limits.js?v=l2';
 
 export const STATE = Object.freeze({
   IDLE: 'idle', // nothing loaded
@@ -185,7 +185,7 @@ export class WorkoutEngine {
     return this.stopPromise;
   }
 
-  /** After a fault: confirm (from the treadmill's own readings) that the belt is stopped, and close the workout. */
+  /** After a fault: check, from the treadmill's own readings, that the belt is stopped, then close the workout. */
   acknowledgeFault() {
     if (this.state !== STATE.FAULTED) return this._refuse('there is no fault to acknowledge');
     const snap = this.ctl.snapshot();

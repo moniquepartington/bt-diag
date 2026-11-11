@@ -92,6 +92,14 @@ Run: take control, start, speed 2.0 / 2.4 / 2.8 mph, incline 2 / 5 / 8 / 0, stop
 
 Simulator and tests updated to model the incline reset on Stop (and the keep-incline alternative). 138 tests pass.
 
+### Build v3 / c7 (approved after Stage B was recorded)
+
+- **Verified limits raised to 2.8 mph and incline 8** (`workout/limits.js`), the validated Stage B ceiling and exactly the top of the five presets. All five presets now load and run on the real limits in the simulator (57 engine tests). Anything above is still refused, never clamped, and the control layer enforces the same numbers again when the Controller is created with them. The Phase 2 control page keeps its own lower caps (1.0 mph, incline 2), as agreed.
+- **Blocking dialogs removed.** The browser's confirm dialog froze the page while open, so readings were not processed and the next freshness check saw old data. Start (both pages) and Start workout (validation page) now use a non-blocking two-step confirmation: the first tap arms and shows the same warning, a second tap within 8 s confirms, doing nothing cancels, and an armed Start is dropped if it stops being allowed. A test guards that no page uses `confirm`, `alert` or `prompt`.
+- **Idle reading limit kept at 6 s for now.** The next hardware run with no dialog will show whether the gaps are gone; if so the stricter 3 s limit can be restored.
+- 146 tests pass (18 decoders, 47 controller, 57 engine, 18 validation, 6 confirmation). Mutation checks: raising or lowering the limits and breaking the confirm each fail tests.
+- Hardware check outstanding: a short run of the new build to confirm the Start flow and the reading gaps on the real phone and treadmill.
+
 ## Next hardware-validation milestone (needs separate approval)
 
 Staged, belt-empty validation of the preset range: raise the validated limits in two stages on a dedicated test page, each stage its own approval and its own remote-in-hand run:

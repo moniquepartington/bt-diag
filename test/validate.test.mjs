@@ -14,12 +14,13 @@ import { validateWorkout, checkAgainstLimits, totalSeconds } from '../site/worko
 const hexs = (b) => b.map((x) => x.toString(16).padStart(2, '0')).join(' ');
 
 // ======================= stage definitions and the approval gate =======================
-test('STAGES: limits are as approved, frozen, and the verified limits are untouched', () => {
+test('STAGES: limits are as approved and frozen, and the verified limits equal the validated Stage B ceiling', () => {
   assert.deepEqual({ ...STAGES.A.limits }, { maxMph: 2.0, maxInclineLevel: 5 });
   assert.deepEqual({ ...STAGES.B.limits }, { maxMph: 2.8, maxInclineLevel: 8 });
   assert.ok(Object.isFrozen(STAGES) && Object.isFrozen(STAGES.A) && Object.isFrozen(STAGES.A.limits) && Object.isFrozen(STAGES.B.limits));
-  assert.deepEqual({ ...VERIFIED_LIMITS }, { maxMph: 1.0, maxInclineLevel: 2 }, 'raising the verified limits is a separate, later step');
-  assert.ok(STAGES.A.limits.maxMph > VERIFIED_LIMITS.maxMph && STAGES.B.limits.maxMph > STAGES.A.limits.maxMph);
+  assert.deepEqual({ ...VERIFIED_LIMITS }, { ...STAGES.B.limits }, 'raised only after Stages A and B were run and recorded');
+  assert.ok(STAGES.A.limits.maxMph < STAGES.B.limits.maxMph && STAGES.A.limits.maxInclineLevel < STAGES.B.limits.maxInclineLevel);
+  assert.ok(Object.values(STAGES).every((s) => s.limits.maxMph <= VERIFIED_LIMITS.maxMph && s.limits.maxInclineLevel <= VERIFIED_LIMITS.maxInclineLevel), 'no stage exceeds what is validated');
 });
 
 test('STAGES: every manual speed and incline button sits inside its own stage limits', () => {
@@ -127,7 +128,7 @@ test('STAGE A limits are enforced: 2.1 mph and incline 6 are refused, 2.0 and 5 
   assert.equal((await settle(rig, rig.ctl.setInclineLevel(5))).ok, true);
 });
 
-test('the control layer on the REAL verified limits still refuses stage speeds (a stage cannot leak into other pages)', async () => {
+test('the Phase 2 control page caps still refuse stage speeds (a stage cannot leak into other pages)', async () => {
   const rig = makeRig({});
   await toRunning(rig);
   assert.equal((await rig.ctl.setSpeedMph(2.0)).ok, false);
@@ -180,12 +181,12 @@ test('STAGE B workout runs on the simulator with a pause and resume, inside Stag
   assert.ok(rig.written.every((w) => w[0] !== 0x02 || (w[1] | (w[2] << 8)) <= 448), 'no speed above 2.8 mph (4.48 km/h) was ever sent');
 });
 
-test('the same Stage B workout is REFUSED by an engine on Stage A limits (and on the verified limits)', () => {
+test('the Stage B workout is REFUSED by an engine on Stage A limits, and accepted on the verified limits', () => {
   const rig = stageRig('A');
   const eng = new WorkoutEngine({ controller: rig.ctl, clock: rig.clock, limits: STAGES.A.limits });
   assert.equal(eng.load(STAGES.B.workout).ok, false);
-  const real = makeRig({});
-  assert.equal(new WorkoutEngine({ controller: real.ctl, clock: real.clock }).load(STAGES.B.workout).ok, false);
+  const real = makeRig({}, { limits: VERIFIED_LIMITS });
+  assert.equal(new WorkoutEngine({ controller: real.ctl, clock: real.clock }).load(STAGES.B.workout).ok, true);
 });
 
 // ======================= page guards =======================
