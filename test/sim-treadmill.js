@@ -14,7 +14,7 @@ const s16 = (v) => u16(v & 0xffff);
 export function createSim({ clock, emit, faults = {} }) {
   const s = { control: false, running: false, speedKmh: 0, inclinePct: 0, training: 0x01, targetKmh: null, distance: 0, elapsed: 0, minKmh: 0.96, maxKmh: 8.05, maxIncline: 12 };
   const indicate = (op, result) => {
-    if (faults.noAck) return;
+    if (faults.noAck || faults.noAckOp === op) return;
     const code = faults.badResult && faults.badResult.op === op ? faults.badResult.code : result;
     const sendOp = faults.wrongOpAck ? 0x7f : op;
     clock.setTimeout(() => {
@@ -27,11 +27,12 @@ export function createSim({ clock, emit, faults = {} }) {
 
   function startSequence() {
     if (s.running || s.training === 0x0e) return;
+    if (faults.startIgnored) return; // acknowledged, but the belt never starts
     machine(0x04);
     training(0x0e); // pre-workout countdown
     clock.setTimeout(() => {
       s.running = true;
-      s.speedKmh = faults.overspeedOnStart ? 3.0 : s.targetKmh ?? s.minKmh;
+      s.speedKmh = faults.startSpeedKmh ?? (faults.overspeedOnStart ? 3.0 : s.targetKmh ?? s.minKmh);
       training(0x0d);
       machine(0x04);
     }, 3000);
@@ -39,6 +40,7 @@ export function createSim({ clock, emit, faults = {} }) {
   function stopSequence() {
     s.running = false;
     s.speedKmh = 0;
+    s.targetKmh = null; // after a stop the belt starts again at its minimum (seen on the real treadmill across connections)
     machine(0x02, 0x01);
     training(0x0f);
   }

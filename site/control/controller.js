@@ -43,6 +43,7 @@ export class Controller {
     this.lock = null;
     this.watchdog = null;
     this.abandoned = []; // opcodes whose response we no longer wait for
+    this.listeners = new Set();
   }
 
   // ---------- connection / user state ----------
@@ -264,6 +265,9 @@ export class Controller {
     this._emit();
   }
 
+  /** True if a speed reading arrived recently enough to trust the belt state. */
+  isFresh() { return this._fresh(); }
+
   // ---------- internals ----------
   _fresh() { return this.tele.speedKmh != null && this.clock.now() - this.tele.at <= this.timing.staleMs; }
 
@@ -363,7 +367,17 @@ export class Controller {
     return { link: this.link, hasControl: this.hasControl, armed: this.armed, lock: this.lock, recovery: this.recovery, pending: this.pending && { cmd: this.pending.cmd, acked: this.pending.acked }, tele: { ...this.tele }, training: this.training, expect: this.expect, buttons };
   }
 
-  _emit() { this.onChange(this.snapshot()); }
+  /** Lets another module (the workout engine) watch state changes. Returns an unsubscribe function. */
+  subscribe(fn) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  _emit() {
+    const snap = this.snapshot();
+    this.onChange(snap);
+    for (const fn of [...this.listeners]) fn(snap);
+  }
   _log(msg) { this.onLog(`${(this.clock.now() / 1000).toFixed(1)}s  ${msg}`); }
 }
 
