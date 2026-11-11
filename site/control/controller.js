@@ -8,7 +8,7 @@
 //    the expected result, unexpected motion, over-limit values, lost telemetry or connection) LOCKS OUT every command
 //    except Stop. Nothing is ever retried automatically. Only resetLock() (a manual user action) clears the lock.
 //  * Nothing is sent unless the user has ticked the safety boxes and fresh telemetry is flowing.
-import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c4';
+import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c5';
 
 export const TIMING = Object.freeze({
   ackMs: 3000, // no indication within this long = failure

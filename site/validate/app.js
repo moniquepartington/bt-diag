@@ -2,8 +2,8 @@
 // sent lives in the Controller (control/controller.js) and the workout engine (workout/engine.js); every byte is
 // built by control/protocol.js. A stage's raised limits exist only inside the Controller created for that stage.
 import { Controller } from '../control/controller.js?v=c5';
-import { routeNotification } from '../control/bridge.js?v=c4';
-import { MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from '../control/protocol.js?v=c4';
+import { routeNotification } from '../control/bridge.js?v=c5';
+import { MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from '../control/protocol.js?v=c5';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
 import { WorkoutEngine, STATE } from '../workout/engine.js?v=v1';
 import { STAGES, ENABLED_STAGES, unlockStage, unlockPhrase } from './stages.js?v=v1';
