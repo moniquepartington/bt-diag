@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeUuid, parseTreadmillData, parseFeature, parseSpeedRange, parseInclineRange, parseTrainingStatus, parseMachineStatus, uuid16, hex } from '../diag/ftms.js';
+import { normalizeUuid, parseTreadmillData, parseFeature, parseSpeedRange, parseInclineRange, parseTrainingStatus, parseMachineStatus, uuid16, hex } from '../site/ftms.js';
 
 const dv = (...bytes) => new DataView(new Uint8Array(bytes).buffer);
 
@@ -136,7 +136,7 @@ test('hex formatting', () => {
 });
 
 test('READ-ONLY GUARD: app source contains no GATT write calls and never touches the control point', () => {
-  const src = readFileSync(new URL('../diag/app.js', import.meta.url), 'utf8')
+  const src = readFileSync(new URL('../site/app.js', import.meta.url), 'utf8')
     .split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(src, /writeValue|writeValueWith|\.writeValue/);
   assert.doesNotMatch(src, /getCharacteristic\([^)]*controlPoint/);

@@ -25,6 +25,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: diag # only the three static files are published
+          path: site # published root: diag page plus the control page
       - id: deployment
         uses: actions/deploy-pages@v4

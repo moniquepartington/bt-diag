@@ -70,6 +70,6 @@ Fit with the presets: all preset speeds (1.8 to 2.8 mph) and incline levels (0 t
 
 ## Files
 
-- `diag/` is the published diagnostic (index.html, app.js, ftms.js). Bump the version in all three places on each change to defeat caching.
+- `site/` is the published root (the diagnostic page plus `site/control/`) (index.html, app.js, ftms.js). Bump the version in all three places on each change to defeat caching.
 - `test/` is tests only and is not published.
 - `.github/workflows/pages.yml` deploys `diag/` to GitHub Pages on every push to `main`.

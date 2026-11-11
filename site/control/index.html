@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treadmill Control Test (belt empty)</title>
+<style>
+  :root { color-scheme: dark; --bg:#0d0f12; --card:#171b21; --line:#2a313b; --fg:#e8edf2; --dim:#8b97a5; --ok:#4ade80; --warn:#fbbf24; --err:#f87171; --accent:#38bdf8; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:16px/1.45 -apple-system, system-ui, sans-serif; max-width:640px; margin-inline:auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--dim); margin:0 0 8px; }
+  .banner { background:#2a1517; border:1px solid #7f2d33; border-radius:12px; padding:10px 12px; margin:10px 0 16px; font-size:14px; }
+  .lock { background:#3a1215; border:2px solid var(--err); border-radius:12px; padding:12px; margin-bottom:14px; }
+  .lock b { color:var(--err); font-size:18px; display:block; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:14px; }
+  button { font:inherit; font-weight:600; padding:12px 16px; border-radius:10px; border:1px solid var(--line); background:#222a33; color:var(--fg); min-height:52px; min-width:64px; }
+  button.primary { background:var(--accent); color:#04202e; border-color:var(--accent); }
+  button.danger { background:#7f1d1d; border-color:#b91c1c; }
+  button:disabled { opacity:.35; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  label.chk { display:flex; gap:10px; align-items:flex-start; margin:8px 0; font-size:15px; }
+  label.chk input { width:24px; height:24px; flex:none; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:99px; border:1px solid var(--line); font-size:13px; color:var(--dim); }
+  .pill.ok, .ok { color:var(--ok); } .warn { color:var(--warn); } .err { color:var(--err); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .big { background:#0d0f12; border-radius:10px; padding:10px; }
+  .big small { color:var(--dim); display:block; font-size:12px; }
+  .big div { font-size:20px; font-variant-numeric:tabular-nums; }
+  .step { margin-top:14px; } .step b { display:block; margin-bottom:2px; }
+  .why { color:var(--dim); font-size:13px; min-height:1.2em; }
+  #log { font:12px ui-monospace, monospace; max-height:260px; overflow:auto; }
+  #log .err { color:var(--err); }
+  textarea { width:100%; height:100px; margin-top:8px; background:#0d0f12; color:var(--fg); border:1px solid var(--line); border-radius:8px; font:11px ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>Treadmill Control Test</h1>
+<div id="build" style="color:var(--dim);font-size:12px"></div>
+<div class="banner"><b>This page sends real commands to the treadmill.</b> Belt-empty testing only. The remote or safety key is the real emergency stop; the on-screen Stop is not. Any failure locks everything except Stop until you press Reset test. Nothing is ever retried automatically.</div>
+
+<div id="lock" class="lock" hidden>
+  <b id="lockReason"></b>
+  <div id="lockDetail"></div>
+  <div class="row"><button id="reset">Reset test</button></div>
+</div>
+
+<section>
+  <h2>1 · Safety checklist</h2>
+  <label class="chk"><input type="checkbox" class="arm"> The belt is empty. Nobody is on it.</label>
+  <label class="chk"><input type="checkbox" class="arm"> I am standing beside it with the remote or safety key in reach.</label>
+  <label class="chk"><input type="checkbox" class="arm"> FitShow and Kinni are fully closed.</label>
+</section>
+
+<section>
+  <h2>2 · Connect</h2>
+  <span id="state" class="pill">Not connected</span>
+  <div class="row">
+    <button id="connect" class="primary">Scan &amp; connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+  </div>
+</section>
+
+<section>
+  <h2>3 · Treadmill readings</h2>
+  <div class="grid">
+    <div class="big"><small>Speed</small><div id="vSpeed">—</div></div>
+    <div class="big"><small>Incline</small><div id="vIncline">—</div></div>
+    <div class="big"><small>Status</small><div id="vStatus">—</div></div>
+    <div class="big"><small>Control</small><div id="vControl">not held</div></div>
+    <div class="big" style="grid-column:span 2"><small>Command in progress</small><div id="vPending">none</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>4 · Commands (one at a time)</h2>
+  <div class="step"><b>Step 1 · Take control</b><span class="why">Asks for permission only. The belt must NOT move. The page watches for 6 s.</span>
+    <div class="row"><button id="bControl" disabled>Take control</button></div><div class="why" id="wControl"></div></div>
+  <div class="step"><b>Step 2 · Start</b><span class="why">3-second countdown, then the belt runs at its minimum speed.</span>
+    <div class="row"><button id="bStart" disabled>Start belt</button></div><div class="why" id="wStart"></div></div>
+  <div class="step"><b>Step 3 · Speed (mph)</b>
+    <div class="row" id="speedRow"></div><div class="why" id="wSpeed"></div></div>
+  <div class="step"><b>Step 4 · Incline (level)</b><span class="why">Compare the reading above with the console's level.</span>
+    <div class="row" id="inclineRow"></div><div class="why" id="wIncline"></div></div>
+  <div class="step"><b>Stop</b>
+    <div class="row"><button id="bStop" class="danger" disabled>Stop belt</button></div><div class="why" id="wStop"></div></div>
+</section>
+
+<section>
+  <h2>5 · Report</h2>
+  <button id="copy" class="primary">Copy report</button>
+  <textarea id="reportBox" placeholder="Report appears here if copying is blocked." readonly></textarea>
+</section>
+
+<section>
+  <h2>Log</h2>
+  <div id="log"></div>
+</section>
+
+<script type="module" src="./app.js?v=c1"></script>
+</body>
+</html>
