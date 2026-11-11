@@ -23,7 +23,7 @@ Status: **built and tested against a simulator only. No command has been sent to
 
 ## Tests
 
-- 53 tests pass: `node --test test/ftms.test.mjs test/controller.test.mjs` (50 on the controller and simulator, including 24 failure and edge cases).
+- 53 tests pass: `node --test test/ftms.test.mjs test/controller.test.mjs` (18 decoder tests, 35 controller tests on the simulator covering the happy path, limits, and the failure, lockout and tripwire cases).
 - The real page was driven against a simulated treadmill in a desktop browser with Bluefy-style short IDs: gating, one-at-a-time buttons, the full ladder (exact bytes `00, 07, 02 80 00, 02 a0 00, 03 0a 00, 03 14 00, 08 01`), and the lockout banner.
 - Not tested: real Bluefy writes, the real W400A, any real acknowledgment from the module.
 
