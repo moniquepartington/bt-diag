@@ -27,7 +27,26 @@ Status: **built and tested against a simulator only. No command has been sent to
 - The real page was driven against a simulated treadmill in a desktop browser with Bluefy-style short IDs: gating, one-at-a-time buttons, the full ladder (exact bytes `00, 07, 02 80 00, 02 a0 00, 03 0a 00, 03 14 00, 08 01`), and the lockout banner.
 - Not tested: real Bluefy writes, the real W400A, any real acknowledgment from the module.
 
-## Can Take Control move the belt on this device? NOT ESTABLISHED
+## Hardware results (belt empty, iPhone, Bluefy, control page build c1)
+
+Three runs on the real treadmill, all with no lockouts and no retries. Replies came back in about 0.1 s every time.
+
+| Command | Bytes sent | Result on the real treadmill |
+|---|---|---|
+| Take control | `00` | Acknowledged. No belt motion in the 6 s watch (two runs). |
+| Start | `07` | Acknowledged. Machine status "started", then 3.0 s later a second "started" and the belt at **0.96 km/h**. Same sequence as starting from the remote. |
+| Speed 0.8 mph | `02 80 00` | Acknowledged. Reading confirmed **1.28 km/h** (exact). |
+| Speed 1.0 mph | `02 a0 00` | Acknowledged. Reading confirmed **1.61 km/h** (1 hundredth above the 1.60 requested; the treadmill snaps to its own grid). |
+| Incline 1, 2, 0 | `03 0a 00`, `03 14 00`, `03 00 00` | Acknowledged. Readings confirmed **1 %, 2 %, 0 %**, each within 0.1 s of the acknowledgment. |
+| Stop | `08 01` | Acknowledged. Machine status "stopped" and speed 0 about 2.4 to 3.2 s later. |
+
+Caveats on what this proves:
+- Incline readings changed almost instantly, so they show the treadmill accepted the target. They do not by themselves show the ramp physically moved.
+- Console display values (mph and incline level) were not recorded, so "0.8 mph on the page equals 0.8 on the console" and "incline level N equals N %" remain unconfirmed.
+- Once, with the belt idle and control held, speed readings paused for more than 3 s (the page correctly refused to send). Not seen while the belt was running. Builds c2 and c3 add gap logging.
+- Not tested on hardware: disconnecting while the belt runs, locked screen or backgrounded page, anything above 1.0 mph or incline 2, a failure lockout, two reconnects in a row.
+
+## Can Take Control move the belt on this device? Two observations say no, not proven in general
 
 Evidence that it should not:
 - The standard defines Request Control (`00`) as a permission request only; Start (`07`) is separate.
