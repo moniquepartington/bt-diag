@@ -1,11 +1,11 @@
 // Read-only BLE diagnostic. This file must never write to a characteristic.
 // Allowed GATT operations: connect, discover, readValue(), startNotifications()/stopNotifications().
 // (Enabling notifications writes the standard CCCD descriptor internally; that is not a control command.)
-import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js';
+import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js?v=b4';
 
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
-const BUILD = 'b3-short-uuid-fix'; // bump on each change so we can tell cached pages from new ones
+const BUILD = 'b4'; // bump on each change (also in index.html and the ftms.js import) to defeat browser caching
 
 const report = { build: BUILD, generatedAt: null, environment: {}, device: null, services: [], reads: {}, notifySamples: {}, events: [], errors: [] };
 const live = { device: null, subscribed: [] };
