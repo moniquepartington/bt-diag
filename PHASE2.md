@@ -50,6 +50,16 @@ Caveats on what this proves:
 - Once, with the belt idle and control held, speed readings paused for more than 3 s (the page correctly refused to send). Not seen while the belt was running. Builds c2 and c3 add gap logging.
 - Not tested on hardware: disconnecting while the belt runs, locked screen or backgrounded page, anything above 1.0 mph or incline 2, a failure lockout, two reconnects in a row.
 
+## Disconnect test (belt empty, 0.6 mph): THE BELT KEEPS RUNNING
+
+Take control, Start (belt at 0.96 km/h), then the page's **Disconnect** button (a clean disconnect). Result reported by the user: the belt **continued at the same steady speed**, and **nothing changed on the console**. The belt was stopped with the remote. The page behaved as designed: locked out with CONNECTION LOST and sent nothing further.
+
+Consequences (these now override any optimistic assumption):
+- The treadmill has **no dead-man behaviour on Bluetooth loss**. After a disconnect, the belt stays at its last speed and incline until someone stops it with the remote, safety key or power.
+- In a real workout, a dropped connection leaves the belt at the current interval's speed and incline. The workout cannot continue or cool down automatically.
+- The page cannot stop the belt after a disconnect. A new connection would have to regain control first, and the control page currently refuses Take Control while the belt is moving. A recovery path (reconnect, take control, stop only) is designed but not built or tested.
+- Not tested: a forced app quit or an abrupt link loss (range). The clean disconnect already showed the module does not stop the belt, so a more abrupt drop is not expected to be safer.
+
 ## Can Take Control move the belt on this device? Two observations say no, not proven in general
 
 Evidence that it should not:
