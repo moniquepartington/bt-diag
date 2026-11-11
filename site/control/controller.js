@@ -8,7 +8,7 @@
 //    the expected result, unexpected motion, over-limit values, lost telemetry or connection) LOCKS OUT every command
 //    except Stop. Nothing is ever retried automatically. Only resetLock() (a manual user action) clears the lock.
 //  * Nothing is sent unless the user has ticked the safety boxes and fresh telemetry is flowing.
-import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c2';
+import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c3';
 
 export const TIMING = Object.freeze({
   ackMs: 3000, // no indication within this long = failure
@@ -97,7 +97,10 @@ export class Controller {
     if (this.lock) return no(`locked out (${this.lock.reason}): press Reset test`);
     if (!this.armed) return no('tick all three safety boxes');
     if (!this.ranges) return no("the treadmill's limits have not been read");
-    if (!this._fresh()) return no('no fresh telemetry');
+    if (!this._fresh()) {
+      const age = this.clock.now() - this.tele.at;
+      return no(Number.isFinite(age) ? `no fresh telemetry (last reading ${(age / 1000).toFixed(1)} s ago)` : 'no telemetry received yet');
+    }
     const stopped = this._isStopped();
     const running = this.training === TRAINING.RUNNING && (this.tele.speedKmh ?? 0) > STOPPED_KMH;
     switch (cmd) {
@@ -209,8 +212,11 @@ export class Controller {
   /** Only Treadmill Data packets that carry speed should be fed here. */
   feedTelemetry({ speedKmh, inclinePct }) {
     if (speedKmh != null) {
+      const now = this.clock.now();
+      const gap = now - this.tele.at;
+      if (Number.isFinite(gap) && gap > 2000) this._log(`Telemetry gap: no speed reading for ${(gap / 1000).toFixed(1)} s`);
       this.tele.speedKmh = speedKmh;
-      this.tele.at = this.clock.now();
+      this.tele.at = now;
     }
     if (inclinePct != null) this.tele.inclinePct = inclinePct;
     this._monitor();

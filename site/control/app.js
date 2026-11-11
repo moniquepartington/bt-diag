@@ -1,11 +1,11 @@
 // Phase 2 control-test page: Web Bluetooth plumbing and UI only. Every decision about whether a command may be
 // sent lives in controller.js, and every byte is built by protocol.js.
-import { Controller } from './controller.js?v=c2';
-import { routeNotification } from './bridge.js?v=c2';
-import { LIMITS, MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c2';
+import { Controller } from './controller.js?v=c3';
+import { routeNotification } from './bridge.js?v=c3';
+import { LIMITS, MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c3';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
 
-const BUILD = 'c2';
+const BUILD = 'c3';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const SPEEDS_MPH = [0.6, 0.7, 0.8, 0.9, 1.0];
@@ -140,6 +140,11 @@ $('copy').addEventListener('click', async () => {
   $('reportBox').value = body;
   try { await navigator.clipboard.writeText(body); log('Report copied. Paste it into the chat.'); } catch { $('reportBox').select(); log('Clipboard blocked: long-press the box, Select All, Copy.'); }
 });
+
+setInterval(() => {
+  const at = lastSnap?.tele?.at;
+  $('vAge').textContent = Number.isFinite(at) ? `Last speed reading: ${((performance.now() - at) / 1000).toFixed(1)} s ago (commands need under 3 s)` : 'Last speed reading: none yet';
+}, 500);
 
 $('build').textContent = `Build ${BUILD}`;
 log(`Page loaded (${BUILD}). Nothing has been sent to the treadmill.`);

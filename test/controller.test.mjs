@@ -93,6 +93,24 @@ test('nothing is sent when not armed, with stale telemetry, or without device li
   assert.equal(a.written.length + b.written.length + c.written.length, 0);
 });
 
+test('a pause in telemetry is logged, and a refusal says how old the last reading was', async () => {
+  const rig = makeRig();
+  rig.sim.halt();
+  rig.clock.advance(4000);
+  const r = await rig.ctl.takeControl();
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /no fresh telemetry \(last reading [\d.]+ s ago\)/);
+  const rig2 = makeRig({ telemetryStopped: true }, { warmup: false });
+  rig2.clock.advance(1500);
+  assert.equal((await rig2.ctl.takeControl()).reason, 'no telemetry received yet');
+  const rig3 = makeRig();
+  rig3.sim.halt(); // the simulator stops sending, as in a real pause
+  rig3.ctl.feedTelemetry({ speedKmh: 0 }); // reading just now
+  rig3.clock.advance(3500);
+  rig3.ctl.feedTelemetry({ speedKmh: 0 });
+  assert.ok(rig3.logs.some((l) => /Telemetry gap: no speed reading for 3\.5 s/.test(l)));
+});
+
 test('start, speed and incline are refused until control is taken and the belt state allows', async () => {
   const rig = makeRig();
   for (const r of [await rig.ctl.start(), await rig.ctl.setSpeedMph(0.8), await rig.ctl.setInclineLevel(1)]) assert.equal(r.ok, false);
