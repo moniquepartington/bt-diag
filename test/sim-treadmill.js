@@ -3,6 +3,14 @@
 // Treadmill Data packet types, 0x80 <op> <result> indications). It is NOT the W400A; faults can be injected.
 import { CHARS } from '../site/ftms.js';
 
+/**
+ * The real treadmill snaps a commanded speed to its own 0.1 mph grid and reports it as mph x 1.61, floored to 0.01
+ * (seen in Stage A: commands of 1.60, 2.24 and 3.20 km/h were reported as 1.61, 2.25 and 3.22 km/h).
+ */
+const snapKmh = (cmdKmh) => {
+  const mph = Math.round((cmdKmh / 1.61) * 10) / 10;
+  return Math.floor(mph * 1.61 * 100 + 1e-9) / 100;
+};
 const u16 = (v) => [v & 0xff, (v >> 8) & 0xff];
 const s16 = (v) => u16(v & 0xffff);
 
@@ -88,8 +96,8 @@ export function createSim({ clock, emit, faults = {} }) {
         case 0x02: {
           const kmh = (bytes[1] | (bytes[2] << 8)) / 100;
           if (kmh < s.minKmh || kmh > s.maxKmh) return indicate(op, 0x03);
-          s.targetKmh = kmh;
-          if (s.running && !faults.ignoreSpeed) s.speedKmh = kmh;
+          s.targetKmh = snapKmh(kmh);
+          if (s.running && !faults.ignoreSpeed) s.speedKmh = s.targetKmh;
           indicate(op, 0x01);
           break;
         }

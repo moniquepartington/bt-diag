@@ -1,15 +1,15 @@
 // Staged limits-validation page: Web Bluetooth plumbing and UI only. Every decision about whether a command may be
 // sent lives in the Controller (control/controller.js) and the workout engine (workout/engine.js); every byte is
 // built by control/protocol.js. A stage's raised limits exist only inside the Controller created for that stage.
-import { Controller } from '../control/controller.js?v=c5';
-import { routeNotification } from '../control/bridge.js?v=c5';
-import { MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from '../control/protocol.js?v=c5';
+import { Controller } from '../control/controller.js?v=c6';
+import { routeNotification } from '../control/bridge.js?v=c6';
+import { MPH_TO_KMH, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from '../control/protocol.js?v=c6';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
-import { WorkoutEngine, STATE } from '../workout/engine.js?v=v1';
-import { STAGES, ENABLED_STAGES, unlockStage, unlockPhrase } from './stages.js?v=v1';
-import { restartVerdict, TelemetryLog } from './observe.js?v=v1';
+import { WorkoutEngine, STATE } from '../workout/engine.js?v=v2';
+import { STAGES, ENABLED_STAGES, unlockStage, unlockPhrase } from './stages.js?v=v2';
+import { restartVerdict, TelemetryLog } from './observe.js?v=v2';
 
-const BUILD = 'v1';
+const BUILD = 'v2';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const TRAINING_NAMES = { 0x01: 'Idle', 0x0d: 'Running', 0x0e: 'Countdown', 0x0f: 'Finished' };
@@ -143,7 +143,7 @@ async function timed(label, promise) {
 }
 
 async function runSpeed(mph) {
-  const from = lastSnap?.tele.speedKmh == null ? '?' : (lastSnap.tele.speedKmh / MPH_TO_KMH).toFixed(2);
+  const from = lastSnap?.tele.speedKmh == null ? '?' : kmhToMph(lastSnap.tele.speedKmh).toFixed(2);
   const r = await timed(`Speed ${from} → ${mph.toFixed(1)} mph`, ctl.setSpeedMph(mph));
   if (r.ok) lastTargetKmh = mph * MPH_TO_KMH;
 }
@@ -182,7 +182,7 @@ function render(snap) {
   $('reset').disabled = !!snap.pending;
 
   const kmh = snap.tele.speedKmh;
-  $('vSpeed').textContent = kmh == null ? '—' : `${kmh.toFixed(2)} km/h · ${(kmh / MPH_TO_KMH).toFixed(2)} mph`; // mph on the treadmill's own 1.6 km/h-per-mph grid
+  $('vSpeed').textContent = kmh == null ? '—' : `${kmh.toFixed(2)} km/h · ${kmhToMph(kmh).toFixed(2)} mph`; // mph as the treadmill's console shows it
   $('vIncline').textContent = snap.tele.inclinePct == null ? '—' : `${snap.tele.inclinePct.toFixed(1)} %`;
   $('vStatus').textContent = snap.training == null ? '—' : TRAINING_NAMES[snap.training] ?? `0x${snap.training.toString(16)}`;
   $('vControl').textContent = snap.hasControl ? 'held' : 'not held';

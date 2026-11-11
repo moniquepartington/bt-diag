@@ -36,8 +36,11 @@ export const STAGES = Object.freeze({
   }),
 });
 
-/** Only stage A is enabled in this build. Stage B exists, is simulator-tested, and stays locked until approved. */
-export const ENABLED_STAGES = Object.freeze(['A']);
+/**
+ * Stages unlockable in THIS build. Stage A was run and recorded on hardware, then Stage B was approved, so build v2
+ * lists both. A stage is added here only after its own explicit approval; any later stage stays out until then.
+ */
+export const ENABLED_STAGES = Object.freeze(['A', 'B']);
 
 export const unlockPhrase = (id) => `STAGE ${id}`;
 

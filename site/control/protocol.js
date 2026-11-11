@@ -17,6 +17,14 @@ export const LIMITS = Object.freeze({ maxMph: 1.0, maxInclineLevel: 2 });
 export const MPH_TO_KMH = 1.6;
 export const capKmh = (limits = LIMITS) => limits.maxMph * MPH_TO_KMH;
 
+/**
+ * For DISPLAY and for reading the treadmill's own speed back as mph. Observed on the real treadmill (Stage A): it
+ * reports 1.0, 1.4 and 2.0 mph as 1.61, 2.25 and 3.22 km/h, and 0.6 to 0.9 mph as 0.96 to 1.44 km/h, which is a
+ * factor of 1.61 (floored). Commands still use MPH_TO_KMH above: the treadmill snaps them to its own 0.1 mph grid.
+ */
+export const KMH_PER_MPH_DISPLAY = 1.61;
+export const kmhToMph = (kmh) => kmh / KMH_PER_MPH_DISPLAY;
+
 export const encodeRequestControl = () => Uint8Array.of(OP.REQUEST_CONTROL);
 export const encodeStart = () => Uint8Array.of(OP.START);
 export const encodeStop = () => Uint8Array.of(OP.STOP, 0x01); // 0x01 = stop (0x02 would be pause)

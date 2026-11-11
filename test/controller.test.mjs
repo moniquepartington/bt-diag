@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeRig, settle, flush } from './rig.js';
-import { encodeSetSpeedMph, encodeSetInclineLevel, encodeRequestControl, encodeStart, encodeStop, parseIndication, OP, LIMITS } from '../site/control/protocol.js';
+import { encodeSetSpeedMph, encodeSetInclineLevel, encodeRequestControl, encodeStart, encodeStop, parseIndication, kmhToMph, OP, LIMITS } from '../site/control/protocol.js';
 
 const RANGES = { speed: { minKmh: 0.96, maxKmh: 8.05 }, incline: { minPct: 0, maxPct: 12 } };
 const hexs = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join(' ');
@@ -30,6 +30,15 @@ test('encoders refuse anything outside the Phase 2 limits or the device range', 
   for (const bad of [3, -1, 1.5, NaN, '1']) assert.throws(() => encodeSetInclineLevel(bad, RANGES), RangeError, String(bad));
   assert.throws(() => encodeSetSpeedMph(0.8, null), RangeError);
   assert.throws(() => encodeSetSpeedMph(0.8, { speed: { minKmh: 1.5, maxKmh: 8 } }), /below the treadmill minimum/);
+});
+
+test('DISPLAY: the treadmill\'s own readings convert to the mph the console shows (pairs captured on hardware)', () => {
+  const seen = [[0.96, 0.6], [1.12, 0.7], [1.28, 0.8], [1.44, 0.9], [1.61, 1.0], [2.25, 1.4], [3.22, 2.0]]; // km/h reported, mph on the console
+  for (const [kmh, mph] of seen) assert.equal(Math.round(kmhToMph(kmh) * 10) / 10, mph, `${kmh} km/h`);
+  assert.equal(kmhToMph(1.61).toFixed(2), '1.00');
+  assert.equal(kmhToMph(0.96).toFixed(2), '0.60');
+  // the old divide-by-1.6 display was off by a hundredth or two (the "1.01" and "1.41" seen on screen)
+  assert.equal((1.61 / 1.6).toFixed(2), '1.01');
 });
 
 test('only five opcodes exist: request control, set speed, set incline, start, stop', () => {
@@ -83,9 +92,8 @@ test('nothing is sent when not armed, with stale telemetry, or without device li
   const a = makeRig({}, { armed: false });
   assert.equal((await a.ctl.takeControl()).ok, false);
   const b = makeRig();
-  b.clock.advance(5000);
   b.sim.halt();
-  b.clock.advance(5000); // telemetry now stale
+  b.clock.advance(7000); // no reading for 7 s: stale even by the relaxed idle limit (6 s)
   assert.equal((await b.ctl.takeControl()).ok, false);
   const c = makeRig();
   c.ctl.ranges = null;
@@ -96,7 +104,7 @@ test('nothing is sent when not armed, with stale telemetry, or without device li
 test('a pause in telemetry is logged, and a refusal says how old the last reading was', async () => {
   const rig = makeRig();
   rig.sim.halt();
-  rig.clock.advance(4000);
+  rig.clock.advance(7000);
   const r = await rig.ctl.takeControl();
   assert.equal(r.ok, false);
   assert.match(r.reason, /no fresh telemetry \(last reading [\d.]+ s ago\)/);
@@ -109,6 +117,45 @@ test('a pause in telemetry is logged, and a refusal says how old the last readin
   rig3.clock.advance(3500);
   rig3.ctl.feedTelemetry({ speedKmh: 0 });
   assert.ok(rig3.logs.some((l) => /Telemetry gap: no speed reading for 3\.5 s/.test(l)));
+});
+
+test('FRESHNESS: idle readings may be up to 6 s old (the treadmill pauses them for 3.3 s at idle), but not older', async () => {
+  const rig = makeRig();
+  rig.sim.halt();
+  rig.clock.advance(3500); // the gap seen on hardware: 3.3 s
+  assert.equal(rig.ctl.isFresh(), true);
+  assert.equal(rig.ctl.canSend('takeControl').ok, true, 'a Start/Take control is no longer refused for a 3.3 s idle gap');
+  rig.clock.advance(2000); // 5.5 s since the last reading: still within 6 s
+  assert.equal(rig.ctl.isFresh(), true);
+  rig.clock.advance(1500); // 7 s
+  assert.equal(rig.ctl.isFresh(), false);
+  assert.match(rig.ctl.canSend('takeControl').why, /last reading [\d.]+ s ago/);
+});
+
+test('FRESHNESS: whenever the belt is running or a command is pending the strict 3 s limit still applies', async () => {
+  const running = makeRig();
+  await toRunning(running);
+  running.sim.halt();
+  running.clock.advance(1100);
+  assert.equal(running.ctl.isFresh(), true);
+  running.clock.advance(2400); // 3.5 s without a reading while running
+  assert.equal(running.ctl.isFresh(), false, 'running: strict');
+  running.clock.advance(1500); // the watchdog checks once a second
+  assert.match(running.ctl.lock?.reason ?? '', /TELEMETRY LOST/, 'and the watchdog locks out');
+  const pending = makeRig({ ackDelayMs: 2500 });
+  const p = pending.ctl.takeControl();
+  await flush();
+  pending.sim.halt();
+  pending.clock.advance(3500);
+  assert.equal(pending.ctl.isFresh(), false, 'a command in progress: strict');
+  await settle(pending, p); // the watchdog ends the command (readings lost while it was pending)
+});
+
+test('FRESHNESS: a belt that is moving when we did not start it is judged by the strict limit too', async () => {
+  const rig = makeRig({}, { beltRunning: true });
+  rig.sim.halt();
+  rig.clock.advance(3500);
+  assert.equal(rig.ctl.isFresh(), false);
 });
 
 test('start, speed and incline are refused until control is taken and the belt state allows', async () => {

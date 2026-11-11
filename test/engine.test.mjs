@@ -230,7 +230,7 @@ test('RESUME: tap, 3 s countdown with nothing sent, restart, verified state, THE
   const iStart = n, iSpeed = n + 1;
   assert.ok(rig.writtenAt[iStart] - tTap >= 3000, 'start waited for the countdown');
   assert.ok(rig.writtenAt[iSpeed] - rig.writtenAt[iStart] >= 3000, 'speed was set only after the belt was verified running (treadmill countdown)');
-  assert.equal(rig.sim.state.speedKmh, 1.6);
+  assert.equal(rig.sim.state.speedKmh, 1.61); // 1.0 mph as the real treadmill reports it
 });
 
 test('RESUME: the clock restarts only after the targets are restored and continues from the paused position', async () => {

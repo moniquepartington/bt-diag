@@ -1,11 +1,11 @@
 // Phase 2 control-test page: Web Bluetooth plumbing and UI only. Every decision about whether a command may be
 // sent lives in controller.js, and every byte is built by protocol.js.
-import { Controller } from './controller.js?v=c5';
-import { routeNotification } from './bridge.js?v=c5';
-import { LIMITS, MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c5';
+import { Controller } from './controller.js?v=c6';
+import { routeNotification } from './bridge.js?v=c6';
+import { LIMITS, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c6';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
 
-const BUILD = 'c5';
+const BUILD = 'c6';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const SPEEDS_MPH = [0.6, 0.7, 0.8, 0.9, 1.0];
@@ -94,7 +94,7 @@ function render(snap) {
   $('reset').disabled = !!snap.pending;
 
   const kmh = snap.tele.speedKmh;
-  $('vSpeed').textContent = kmh == null ? '—' : `${kmh.toFixed(2)} km/h · ${(kmh / MPH_TO_KMH).toFixed(2)} mph`; // mph on the treadmill's own 1.6 km/h-per-mph grid
+  $('vSpeed').textContent = kmh == null ? '—' : `${kmh.toFixed(2)} km/h · ${kmhToMph(kmh).toFixed(2)} mph`; // mph as the treadmill's console shows it
   $('vIncline').textContent = snap.tele.inclinePct == null ? '—' : `${snap.tele.inclinePct.toFixed(1)} %`;
   $('vStatus').textContent = snap.training == null ? '—' : TRAINING_NAMES[snap.training] ?? `0x${snap.training.toString(16)}`;
   $('vControl').textContent = snap.hasControl ? 'held' : 'not held';

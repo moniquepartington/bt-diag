@@ -47,23 +47,31 @@ test('STAGE B workout: valid, multiples of 5 s, inside Stage B but beyond Stage 
   assert.equal(STAGES.A.workout, null);
 });
 
-test('GATE: only Stage A is enabled in this build; Stage B cannot be unlocked, whatever is typed', () => {
-  assert.deepEqual([...ENABLED_STAGES], ['A']);
+test('GATE: this build (v2) enables exactly Stages A and B, nothing beyond them', () => {
+  assert.deepEqual([...ENABLED_STAGES], ['A', 'B']);
+  assert.deepEqual(Object.keys(STAGES), ['A', 'B'], 'no further stage exists');
+  assert.equal(unlockStage('C', 'STAGE C').ok, false);
+  assert.equal(unlockStage('C', 'STAGE C', ['A', 'B', 'C']).ok, false, 'an unknown stage cannot be unlocked even if listed');
+});
+
+test('GATE: each stage needs its OWN typed name; the other stage\'s phrase, yes, or nothing does not unlock it', () => {
+  for (const id of ['A', 'B']) {
+    const other = id === 'A' ? 'B' : 'A';
+    assert.match(unlockStage(id, '').reason, new RegExp(`type STAGE ${id}`));
+    assert.match(unlockStage(id, 'yes').reason, new RegExp(`type STAGE ${id}`));
+    assert.match(unlockStage(id, `STAGE ${other}`).reason, new RegExp(`type STAGE ${id}`));
+    assert.equal(unlockStage(id, `STAGE ${id}`).ok, true);
+    assert.equal(unlockStage(id, `  stage ${id.toLowerCase()} `).stage, STAGES[id]);
+  }
+});
+
+test('GATE: a stage left out of the enabled list cannot be unlocked, whatever is typed (the mechanism that held Stage B back in v1)', () => {
   for (const typed of ['STAGE B', 'stage b', ' Stage B ', 'B', '']) {
-    const r = unlockStage('B', typed);
+    const r = unlockStage('B', typed, ['A']);
     assert.equal(r.ok, false);
     assert.match(r.reason, /not enabled in this build/);
   }
-  assert.equal(unlockStage('C', 'STAGE C').ok, false);
-});
-
-test('GATE: unlocking needs the exact stage name typed (case and spaces forgiven)', () => {
-  assert.match(unlockStage('A', '').reason, /type STAGE A/);
-  assert.match(unlockStage('A', 'yes').reason, /type STAGE A/);
-  assert.match(unlockStage('A', 'STAGE B').reason, /type STAGE A/);
-  assert.equal(unlockStage('A', 'STAGE A').ok, true);
-  assert.equal(unlockStage('A', '  stage a ').stage, STAGES.A);
-  assert.equal(unlockStage('B', 'STAGE B', ['A', 'B']).ok, true, 'a later build that lists B can unlock it');
+  assert.equal(unlockStage('A', 'STAGE A', ['B']).ok, false);
 });
 
 test('OBSERVE: restart verdict distinguishes minimum, previous speed, and other', () => {
@@ -133,7 +141,7 @@ test('STAGE A: if the belt restarts at its PREVIOUS speed the observation shows 
   assert.equal((await settle(rig, rig.ctl.stop())).ok, true);
   assert.equal((await settle(rig, rig.ctl.start())).ok, true);
   const kmh = rig.ctl.tele.speedKmh;
-  assert.equal(kmh, 3.2);
+  assert.equal(kmh, 3.22); // 2.0 mph as the real treadmill reports it
   assert.equal(restartVerdict(kmh, rig.ctl.ranges.speed.minKmh, 2.0 * 1.6).kind, 'previous');
   assert.equal(rig.ctl.lock, null);
 });
@@ -160,7 +168,7 @@ test('STAGE B workout runs on the simulator with a pause and resume, inside Stag
   assert.equal(eng.load(STAGES.B.workout).ok, true);
   assert.equal((await settle(rig, eng.begin(), 40000)).ok, true);
   await run(rig, 25000); // into interval 2: 2.8 mph, incline 8
-  assert.ok(Math.abs(rig.sim.state.speedKmh - 4.48) < 1e-9);
+  assert.ok(Math.abs(rig.sim.state.speedKmh - 4.50) < 1e-9); // 2.8 mph as the real treadmill reports it
   assert.equal(rig.sim.state.inclinePct, 8);
   assert.equal((await settle(rig, eng.pause())).ok, true);
   assert.equal(rig.sim.state.running, false);

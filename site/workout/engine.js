@@ -27,7 +27,7 @@ export const STATE = Object.freeze({
 });
 
 export const DEFAULT_CONFIG = Object.freeze({ tickMs: 250, maxTickGapMs: 5000, resumeCountdownMs: 3000 });
-const MPH_PER_KMH = 1 / 1.6; // the treadmill's own speed grid (see control/protocol.js)
+const MPH_PER_KMH = 1 / 1.61; // how the treadmill reports its own speed (see KMH_PER_MPH_DISPLAY in control/protocol.js)
 const STOPPED_KMH = 0.05;
 const MIN_START_SPEED_SLACK_KMH = 0.2; // a fresh start must be at the treadmill's minimum speed, within this
 const TRAINING = { IDLE: 0x01, RUNNING: 0x0d, POST: 0x0f };
