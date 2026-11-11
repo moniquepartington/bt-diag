@@ -65,6 +65,14 @@ Incline follow-up run (separate session, belt at its minimum speed): incline **2
 | Idle telemetry gaps | Seen again (3.3 s and 2.2 s while idle); one Start was refused for "no fresh telemetry (3.3 s ago)". Safe refusal; evidence for loosening the idle limit to 6 s (awaiting approval). |
 | A "stopped" status (`02 01`) appears right after connecting while idle | Harmless, seen before. |
 
+### Build v2 / c6 (approved after Stage A was recorded)
+
+- **Stage B enabled** (alongside A), each stage unlocked only by its own typed phrase. Stage B is run on hardware next.
+- **Idle reading limit loosened from 3 s to 6 s** while the belt is idle and nothing is pending. It stays at 3 s whenever the belt is moving, a command is pending, or an unexpected moving belt is seen. Mutation-checked (always strict, always relaxed, relaxed while pending, a 60 s limit: each fails a test).
+- **mph display and readback** now use the treadmill's own factor (about 1.61 km/h per mph), so the page matches the console (1.00, 1.40, 2.00 instead of 1.01, 1.41, 2.01). Commands are unchanged.
+- **Simulator** now snaps commanded speeds to the 0.1 mph grid and reports them the way the real treadmill does (1.61, 2.25, 3.22 km/h). All tests, including full preset runs, pass against it.
+- 135 tests pass (18 decoders, 47 controller, 52 engine, 18 staged validation). `VERIFIED_LIMITS` is still 1.0 mph and incline 2.
+
 ## Next hardware-validation milestone (needs separate approval)
 
 Staged, belt-empty validation of the preset range: raise the validated limits in two stages on a dedicated test page, each stage its own approval and its own remote-in-hand run:
