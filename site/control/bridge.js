@@ -14,6 +14,6 @@ export function routeNotification(ctl, rawUuid, dv) {
     if (d.code != null) ctl.feedTraining(d.code);
   } else if (uuid === CHARS.machineStatus) {
     const d = parseMachineStatus(dv);
-    if (d.code != null) ctl.feedMachineStatus(d.code);
+    if (d.code != null) ctl.feedMachineStatus(d.code, d.raw);
   }
 }

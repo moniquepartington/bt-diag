@@ -8,7 +8,7 @@
 //    the expected result, unexpected motion, over-limit values, lost telemetry or connection) LOCKS OUT every command
 //    except Stop. Nothing is ever retried automatically. Only resetLock() (a manual user action) clears the lock.
 //  * Nothing is sent unless the user has ticked the safety boxes and fresh telemetry is flowing.
-import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c1';
+import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c2';
 
 export const TIMING = Object.freeze({
   ackMs: 3000, // no indication within this long = failure
@@ -186,7 +186,7 @@ export class Controller {
     if (!ind.ok) return this._lockout('TREADMILL REJECTED COMMAND', `${p.cmd}: ${RESULT_TEXT[ind.result] ?? `result ${ind.result}`}. Not retrying.`);
     p.acked = true;
     this.clock.clearTimeout(p.ackTimer);
-    this._log(`ACK ${p.cmd}`);
+    this._log(`ACK ${p.cmd} [${hex(bytes)}]`);
     const t = this.timing;
     if (p.cmd === 'takeControl') {
       this.hasControl = true;
@@ -225,8 +225,8 @@ export class Controller {
     this._emit();
   }
 
-  feedMachineStatus(code) {
-    this._log(`Machine status 0x${code.toString(16)}`);
+  feedMachineStatus(code, raw = '') {
+    this._log(`Machine status 0x${code.toString(16)}${raw ? ` [${raw}]` : ''}`);
     if (code === 0xff) {
       this.hasControl = false;
       return this._lockout('CONTROL PERMISSION LOST', 'Another app or the console took control.');
