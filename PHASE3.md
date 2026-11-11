@@ -48,6 +48,21 @@ Status: built and tested against the SIMULATOR only. No command was sent to the 
 - **Tests:** 17 new tests (130 in all). Includes the staged ladders on the simulator, the exact bytes, over-limit refusals, the unlock gate, the engine failing safe if the belt restarts at its previous speed, and a Stage B run with pause and resume. The real page was also driven against the simulator for Stage A, and for Stage B through a test-only server that enables it.
 - Raising the validated limits (which is what makes the five presets runnable) remains a separate step after Stage B is recorded and approved.
 
+### Stage A hardware results (validate page v1, belt empty) — SPEED PART DONE, INCLINE PART NOT RUN
+
+What was run: take control, start, speed 1.0 / 1.4 / 2.0 mph, stop from 2.0 mph, start again, speed 2.0 from the minimum, stop. User notes: console matched each step; each change felt instant. No lockouts. Incline was never commanded (all readings 0 %), so **incline 2 and 5 are still unvalidated**.
+
+| Question | Result |
+|---|---|
+| Speeds above 1.0 mph accepted | Yes, 1.0, 1.4 and 2.0 mph acknowledged in 0.1 s and confirmed by the readings; console matched. |
+| Big step from the minimum | Yes. 0.6 to 2.0 mph in one command (0.96 to 3.22 km/h) confirmed in 0.3 s. |
+| Restart speed after a Stop in the same connection | **The minimum (0.96 km/h), both times.** The workout engine's assumption holds. |
+| Speed changes | Readings jump to the new value at the next packet; no slow ramp visible. |
+| Stop is not instant | From 2.0 mph the belt decelerated over about 5 s (3.22, 2.41, 1.77, 1.28, 0.64, 0.16 km/h) and was confirmed stopped 6.6 to 6.7 s after the tap (0.6 mph stops took 2.4 to 3.2 s). Within the 15 s stop confirmation limit, but a stop from 5 mph would take longer. |
+| Speed conversion | The treadmill reports 1.0, 1.4, 2.0 mph as 1.61, 2.25, 3.22 km/h (factor about 1.61, floored), while low speeds read 0.96, 1.12, 1.28, 1.44 (the same factor). Our 1.6 command factor lands on the right 0.1 mph step; readings stay within the 0.08 km/h tolerance up to the preset maximum. The page's mph display (divides by 1.6) shows 1.01 and 1.41 where the console says 1.0 and 1.4; cosmetic. |
+| Idle telemetry gaps | Seen again (3.3 s and 2.2 s while idle); one Start was refused for "no fresh telemetry (3.3 s ago)". Safe refusal; evidence for loosening the idle limit to 6 s (awaiting approval). |
+| A "stopped" status (`02 01`) appears right after connecting while idle | Harmless, seen before. |
+
 ## Next hardware-validation milestone (needs separate approval)
 
 Staged, belt-empty validation of the preset range: raise the validated limits in two stages on a dedicated test page, each stage its own approval and its own remote-in-hand run:
