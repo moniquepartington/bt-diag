@@ -24,7 +24,7 @@ export class FakeClock {
 
 export const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
 
-export function makeRig(faults = {}, { armed = true, warmup = true } = {}) {
+export function makeRig(faults = {}, { armed = true, warmup = true, beltRunning = false } = {}) {
   const clock = new FakeClock();
   const written = [];
   const logs = [];
@@ -33,8 +33,9 @@ export function makeRig(faults = {}, { armed = true, warmup = true } = {}) {
   const ctl = new Controller({ transport, clock, onLog: (l) => logs.push(l) });
   sim = createSim({ clock, faults, emit: (uuid, bytes) => routeNotification(ctl, uuid, new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)) });
   sim.start();
+  if (beltRunning) Object.assign(sim.state, { running: true, speedKmh: 0.96, training: 0x0d }); // e.g. page reloaded while the belt runs
   ctl.connected({ speed: { minKmh: 0.96, maxKmh: 8.05 }, incline: { minPct: 0, maxPct: 12 } });
-  ctl.feedTraining(0x01);
+  ctl.feedTraining(sim.state.training);
   ctl.setArmed(armed);
   if (warmup) clock.advance(1100); // let telemetry arrive
   return { clock, sim, ctl, written, logs };

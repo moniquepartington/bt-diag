@@ -18,6 +18,7 @@
   button.primary { background:var(--accent); color:#04202e; border-color:var(--accent); }
   button.danger { background:#7f1d1d; border-color:#b91c1c; }
   button:disabled { opacity:.35; }
+  button.attn { outline:3px solid var(--warn); outline-offset:2px; }
   .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
   label.chk { display:flex; gap:10px; align-items:flex-start; margin:8px 0; font-size:15px; }
   label.chk input { width:24px; height:24px; flex:none; }
@@ -42,6 +43,10 @@
 <div id="lock" class="lock" hidden>
   <b id="lockReason"></b>
   <div id="lockDetail"></div>
+  <div id="recoveryHelp" hidden style="margin-top:10px">
+    <b style="font-size:16px">RECOVERY: the belt is moving</b>
+    The remote or safety key is the fastest way to stop it. From this page: <b style="display:inline;font-size:inherit">1.</b> tap <i>Take control</i> and wait for "none", then <b style="display:inline;font-size:inherit">2.</b> tap <i>Stop belt</i>. Start, speed and incline stay disabled. Nothing runs by itself.
+  </div>
   <div class="row"><button id="reset">Reset test</button></div>
 </div>
 
@@ -98,6 +103,6 @@
   <div id="log"></div>
 </section>
 
-<script type="module" src="./app.js?v=c3"></script>
+<script type="module" src="./app.js?v=c4"></script>
 </body>
 </html>

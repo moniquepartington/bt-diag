@@ -60,6 +60,18 @@ Consequences (these now override any optimistic assumption):
 - The page cannot stop the belt after a disconnect. A new connection would have to regain control first, and the control page currently refuses Take Control while the belt is moving. A recovery path (reconnect, take control, stop only) is designed but not built or tested.
 - Not tested: a forced app quit or an abrupt link loss (range). The clean disconnect already showed the module does not stop the belt, so a more abrupt drop is not expected to be safer.
 
+## Recovery mode (control page build c4): simulator-tested only
+
+Built after the disconnect finding. When the page is locked out and the belt is moving (after a disconnect, or a reload while it runs), the page shows a recovery panel and offers exactly two actions: **Take control** (normally refused while the belt moves) and **Stop belt**. Start, Speed and Incline stay disabled, even with control held, until the belt has stopped and the user presses Reset test.
+
+- Nothing is sent automatically; both steps are user taps, one command at a time, confirmed against the readings, no retries.
+- Readings from a previous connection are discarded on reconnect; Take control is offered only once fresh speed readings show the belt state.
+- If the belt speeds up after Take control in recovery, the page locks deeper and keeps Stop available.
+- Stop is also available before Take control (the treadmill may reject it without control; the page then locks and the user takes control and tries again manually).
+- Reconnects ignore events from older connections so one acknowledgment is never counted twice.
+- Tests: 61 pass, including 8 recovery cases. Real page driven against the simulator through start, disconnect, reconnect, take control, stop (writes exactly `00` then `08 01`).
+- **Not tested on hardware:** whether a new connection to the real treadmill can take control and stop a belt that is already running, and what Take control does to a running belt.
+
 ## Can Take Control move the belt on this device? Two observations say no, not proven in general
 
 Evidence that it should not:

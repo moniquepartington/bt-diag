@@ -1,11 +1,11 @@
 // Phase 2 control-test page: Web Bluetooth plumbing and UI only. Every decision about whether a command may be
 // sent lives in controller.js, and every byte is built by protocol.js.
-import { Controller } from './controller.js?v=c3';
-import { routeNotification } from './bridge.js?v=c3';
-import { LIMITS, MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c3';
+import { Controller } from './controller.js?v=c4';
+import { routeNotification } from './bridge.js?v=c4';
+import { LIMITS, MPH_TO_KMH, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c4';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
 
-const BUILD = 'c3';
+const BUILD = 'c4';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const SPEEDS_MPH = [0.6, 0.7, 0.8, 0.9, 1.0];
@@ -32,15 +32,24 @@ function log(line) {
 const withTimeout = (p, ms, label) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${ms / 1000} s`)), ms))]);
 
 // ---------- connect ----------
+// Each connection gets a generation number. Events from an older connection (stale listeners left on a reused
+// device or characteristic object after a reconnect) are ignored, so one acknowledgment can never be counted twice.
+let generation = 0;
+let onGattDisconnect = null;
+
 async function connect() {
   if (!(navigator.bluetooth && window.isSecureContext)) return log('Web Bluetooth is not available here. Open this page in Bluefy over https://.');
   try {
     log('Opening device chooser…');
+    if (device && onGattDisconnect) device.removeEventListener('gattserverdisconnected', onGattDisconnect);
     device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'FS-' }], optionalServices: [SERVICES.fitnessMachine] });
-    device.addEventListener('gattserverdisconnected', () => {
+    const gen = ++generation;
+    onGattDisconnect = () => {
+      if (gen !== generation) return;
       if (ctl.link) ctl.disconnected();
       else log('Disconnected before the test was ready.');
-    });
+    };
+    device.addEventListener('gattserverdisconnected', onGattDisconnect);
     const server = await withTimeout(device.gatt.connect(), CONNECT_TIMEOUT_MS, 'GATT connect');
     const svc = await server.getPrimaryService(SERVICES.fitnessMachine);
     const ch = (uuid) => svc.getCharacteristic(uuid);
@@ -53,7 +62,7 @@ async function connect() {
     // Listen first (including control-point responses) so that no acknowledgment can be missed.
     // If any subscription fails we refuse to continue: we never send a command we cannot see the answer to.
     for (const c of [data, training, machine, cp]) {
-      c.addEventListener('characteristicvaluechanged', (ev) => routeNotification(ctl, ev.target.uuid, ev.target.value));
+      c.addEventListener('characteristicvaluechanged', (ev) => { if (gen === generation) routeNotification(ctl, ev.target.uuid, ev.target.value); });
       await c.startNotifications();
     }
     ctl.connected({ speed: { minKmh: speed.minKmh, maxKmh: speed.maxKmh }, incline: { minPct: incline.minPct, maxPct: incline.maxPct } });
@@ -79,6 +88,9 @@ function render(snap) {
   $('disconnect').disabled = !snap.link;
   $('lock').hidden = !snap.lock;
   if (snap.lock) { $('lockReason').textContent = `LOCKED OUT: ${snap.lock.reason}`; $('lockDetail').textContent = snap.lock.detail; }
+  $('recoveryHelp').hidden = !snap.recovery;
+  $('bControl').classList.toggle('attn', snap.recovery && snap.buttons.takeControl.ok);
+  $('bStop').classList.toggle('attn', snap.recovery && snap.buttons.stop.ok);
   $('reset').disabled = !!snap.pending;
 
   const kmh = snap.tele.speedKmh;

@@ -8,7 +8,7 @@
 //    the expected result, unexpected motion, over-limit values, lost telemetry or connection) LOCKS OUT every command
 //    except Stop. Nothing is ever retried automatically. Only resetLock() (a manual user action) clears the lock.
 //  * Nothing is sent unless the user has ticked the safety boxes and fresh telemetry is flowing.
-import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c3';
+import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c4';
 
 export const TIMING = Object.freeze({
   ackMs: 3000, // no indication within this long = failure
@@ -52,6 +52,9 @@ export class Controller {
     this.hasControl = false;
     this.abandoned = [];
     this.expect = 'stopped';
+    // Forget anything remembered from a previous connection: the belt state is unknown until new readings arrive.
+    this.tele = { speedKmh: null, inclinePct: null, at: -Infinity };
+    this.training = null;
     this._armWatchdog();
     this._log('Connected. Device ranges read; waiting for telemetry.');
     this._emit();
@@ -94,7 +97,15 @@ export class Controller {
     // Stop is the one command that moves toward safety, so it is allowed even in a lockout and even if the
     // acknowledgment of Take Control never arrived (the treadmill will simply reject it if control is not held).
     if (cmd === 'stop') return this.hasControl || this.lock || this.abandoned.length ? { ok: true } : no('nothing to stop yet: control has not been taken');
-    if (this.lock) return no(`locked out (${this.lock.reason}): press Reset test`);
+    if (this.lock) {
+      // RECOVERY: locked out with the belt moving (for example after a disconnect, or a reload while it runs).
+      // The only extra thing allowed is asking for control, so that Stop can be accepted. Never Start, Speed or Incline.
+      if (cmd === 'takeControl' && this.recovery) {
+        if (this.hasControl) return no('already have control: press Stop belt');
+        return this._fresh() ? { ok: true } : no('waiting for fresh readings before asking for control');
+      }
+      return no(`locked out (${this.lock.reason}): press Reset test`);
+    }
     if (!this.armed) return no('tick all three safety boxes');
     if (!this.ranges) return no("the treadmill's limits have not been read");
     if (!this._fresh()) {
@@ -120,7 +131,13 @@ export class Controller {
   }
 
   // ---------- commands ----------
-  takeControl() { return this._issue('takeControl', () => ({ bytes: encodeRequestControl() })); }
+  takeControl() {
+    return this._issue('takeControl', () => ({
+      bytes: encodeRequestControl(),
+      // In recovery the belt is already moving: remember its speed so any INCREASE afterwards is caught.
+      meta: { baselineKmh: this.recovery ? this.tele.speedKmh : null },
+    }));
+  }
   start() { return this._issue('start', () => ({ bytes: encodeStart() })); }
   stop() { return this._issue('stop', () => ({ bytes: encodeStop() })); }
   setSpeedMph(mph) {
@@ -220,6 +237,10 @@ export class Controller {
     }
     if (inclinePct != null) this.tele.inclinePct = inclinePct;
     this._monitor();
+    const p = this.pending;
+    if (p?.cmd === 'takeControl' && p.meta.baselineKmh != null && speedKmh != null && speedKmh > p.meta.baselineKmh + STOPPED_KMH) {
+      this._lockout('SPEED INCREASED AFTER TAKE CONTROL', `${speedKmh} km/h, up from ${p.meta.baselineKmh}. Stop the belt with the remote or safety key now.`);
+    }
     this._checkConfirm();
     this._emit();
   }
@@ -237,7 +258,7 @@ export class Controller {
       this.hasControl = false;
       return this._lockout('CONTROL PERMISSION LOST', 'Another app or the console took control.');
     }
-    if (code === 0x04 && this.expect === 'stopped' && this.pending?.cmd !== 'start') {
+    if (code === 0x04 && this.expect === 'stopped' && this.pending?.cmd !== 'start' && !this.lock) {
       return this._lockout(this.pending?.cmd === 'takeControl' ? 'MOTION AFTER TAKE CONTROL' : 'BELT STARTED BY SOMETHING ELSE', 'The treadmill reported "started". Stop the belt with the remote or safety key now.');
     }
     this._emit();
@@ -250,7 +271,17 @@ export class Controller {
     return (this.tele.speedKmh ?? Infinity) <= STOPPED_KMH && (this.training === TRAINING.IDLE || this.training === TRAINING.POST);
   }
 
+  /** True while locked out with the belt moving and the link up: the only state where Take control is allowed in a lockout. */
+  get recovery() { return this.link && !!this.lock && this._beltActive(); }
+
+  _beltActive() {
+    return (this.tele.speedKmh ?? 0) > STOPPED_KMH || this.training === TRAINING.RUNNING || this.training === TRAINING.PRE;
+  }
+
   _monitor() {
+    // Already locked out: these checks would only add duplicate lockouts, and a duplicate would wrongly fail a
+    // recovery Take control or Stop that is in progress. The existing lock already blocks everything else.
+    if (this.lock) return;
     const { speedKmh: s, inclinePct: i } = this.tele;
     const cap = capKmh(this.limits);
     if (s != null && s > cap + 0.1) return this._lockout('OVERSPEED', `${s} km/h is above the test limit of ${cap} km/h. Stop the belt with the remote or safety key.`);
@@ -259,7 +290,10 @@ export class Controller {
     const startPending = this.pending?.cmd === 'start';
     const active = this.training === TRAINING.RUNNING || this.training === TRAINING.PRE;
     if (this.expect === 'stopped' && !startPending && (moving || active)) {
-      return this._lockout(this.pending?.cmd === 'takeControl' ? 'MOTION AFTER TAKE CONTROL' : 'BELT ACTIVE UNEXPECTEDLY', 'Stop the belt with the remote or safety key now.');
+      return this._lockout(
+        this.pending?.cmd === 'takeControl' ? 'MOTION AFTER TAKE CONTROL' : 'BELT ACTIVE UNEXPECTEDLY',
+        'The belt is moving and this page did not start it. Use the remote or safety key, or press Take control and then Stop belt.',
+      );
     }
     if (this.expect === 'running' && !startPending && !moving && (this.training === TRAINING.IDLE || this.training === TRAINING.POST)) {
       if (!this.pending) {
@@ -326,7 +360,7 @@ export class Controller {
   snapshot() {
     const buttons = {};
     for (const c of COMMANDS) buttons[c] = this.canSend(c);
-    return { link: this.link, hasControl: this.hasControl, armed: this.armed, lock: this.lock, pending: this.pending && { cmd: this.pending.cmd, acked: this.pending.acked }, tele: { ...this.tele }, training: this.training, expect: this.expect, buttons };
+    return { link: this.link, hasControl: this.hasControl, armed: this.armed, lock: this.lock, recovery: this.recovery, pending: this.pending && { cmd: this.pending.cmd, acked: this.pending.acked }, tele: { ...this.tele }, training: this.training, expect: this.expect, buttons };
   }
 
   _emit() { this.onChange(this.snapshot()); }

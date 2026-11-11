@@ -141,13 +141,114 @@ test('limits: 1.1 mph, 0.5 mph, 0.85 mph and incline 3 are refused before anythi
   assert.equal(rig.ctl.lock, null, 'a refused input is not a failure');
 });
 
-test('take control and start are refused if the belt is already active', async () => {
+test('a belt that is already active locks the test; Start, speed and incline are refused', async () => {
   const rig = makeRig({}, { warmup: false });
   rig.sim.remoteStart();
   rig.clock.advance(5000);
   assert.ok(rig.ctl.lock, 'unexpected belt activity locks the test');
-  assert.equal((await rig.ctl.takeControl()).ok, false);
+  for (const r of [await rig.ctl.start(), await rig.ctl.setSpeedMph(0.8), await rig.ctl.setInclineLevel(1)]) assert.equal(r.ok, false);
   assert.equal(rig.written.length, 0);
+});
+
+// ---------- recovery (belt moving, new connection) ----------
+const RANGES2 = { speed: { minKmh: 0.96, maxKmh: 8.05 }, incline: { minPct: 0, maxPct: 12 } };
+
+test('RECOVERY after a disconnect: reconnect, take control, stop, all confirmed; nothing else is offered', async () => {
+  const rig = makeRig();
+  const { ctl, sim, clock } = rig;
+  await toRunning(rig);
+  ctl.disconnected();
+  assert.match(ctl.lock.reason, /CONNECTION LOST/);
+  clock.advance(5000);
+  assert.equal(sim.state.running, true, 'the belt keeps running after a disconnect (observed on the real treadmill)');
+  sim.dropControl();
+  const writesBefore = rig.written.length;
+
+  ctl.connected(RANGES2); // new connection
+  ctl.feedTraining(sim.state.training);
+  assert.equal(ctl.canSend('takeControl').ok, false, 'not offered until fresh speed readings have arrived');
+  assert.equal(ctl.tele.speedKmh, null, 'old readings from the previous connection are forgotten');
+  clock.advance(1500); // readings arrive
+  const snap = ctl.snapshot();
+  assert.equal(snap.recovery, true);
+  assert.equal(snap.buttons.takeControl.ok, true);
+  assert.equal(snap.buttons.stop.ok, true);
+  for (const c of ['start', 'setSpeed', 'setIncline']) assert.equal(snap.buttons[c].ok, false, `${c} must not be offered in recovery`);
+
+  assert.equal((await settle(rig, ctl.takeControl())).ok, true);
+  assert.equal(ctl.hasControl, true);
+  assert.equal(sim.state.running, true, 'taking control did not stop or change the belt');
+  for (const c of ['start', 'setSpeed', 'setIncline']) assert.equal(ctl.snapshot().buttons[c].ok, false, `${c} still refused with control held`);
+  assert.equal((await settle(rig, ctl.stop())).ok, true);
+  assert.equal(sim.state.running, false);
+  assert.deepEqual(rig.written.slice(writesBefore), [[0x00], [0x08, 0x01]]);
+  assert.ok(ctl.lock, 'the lock stays until the user resets');
+  assert.equal(ctl.resetLock().ok, true);
+  assert.equal(ctl.snapshot().recovery, false);
+});
+
+test('RECOVERY after a page reload while the belt runs: the unexpected belt triggers the same recovery', async () => {
+  const rig = makeRig({}, { beltRunning: true });
+  rig.sim.dropControl();
+  assert.match(rig.ctl.lock.reason, /BELT ACTIVE UNEXPECTEDLY/);
+  assert.equal(rig.ctl.snapshot().recovery, true);
+  assert.equal((await settle(rig, rig.ctl.takeControl())).ok, true);
+  assert.equal((await settle(rig, rig.ctl.stop())).ok, true);
+  assert.equal(rig.sim.state.running, false);
+});
+
+test('recovery does not need the safety boxes for take control or stop, but still sends nothing until tapped', async () => {
+  const rig = makeRig({}, { beltRunning: true, armed: false });
+  assert.equal(rig.written.length, 0, 'nothing is sent automatically');
+  assert.equal(rig.ctl.snapshot().buttons.takeControl.ok, true);
+  assert.equal(rig.ctl.snapshot().buttons.stop.ok, true);
+  assert.equal(rig.ctl.snapshot().buttons.start.ok, false);
+});
+
+test('recovery take control is refused without fresh readings, and one command at a time still applies', async () => {
+  const rig = makeRig({}, { beltRunning: true });
+  rig.sim.halt();
+  rig.clock.advance(5000);
+  assert.equal(rig.ctl.canSend('takeControl').ok, false);
+  const rig2 = makeRig({}, { beltRunning: true });
+  const p = rig2.ctl.takeControl();
+  await flush();
+  assert.equal(rig2.ctl.snapshot().buttons.stop.ok, false, 'stop is disabled while take control is pending');
+  assert.equal((await rig2.ctl.stop()).sent, false);
+  await settle(rig2, p);
+});
+
+test('recovery: if the belt speeds up after take control, lock deeper and keep Stop available', async () => {
+  const rig = makeRig({ takeControlRaisesSpeed: true }, { beltRunning: true });
+  const r = await settle(rig, rig.ctl.takeControl());
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /SPEED INCREASED AFTER TAKE CONTROL/);
+  assert.equal(rig.ctl.snapshot().buttons.stop.ok, true);
+  assert.equal(rig.written.length, 1);
+});
+
+test('recovery: Stop tapped before control is rejected by the treadmill, then take control and stop work (manual, no auto retry)', async () => {
+  const rig = makeRig({}, { beltRunning: true });
+  rig.sim.dropControl();
+  const r1 = await settle(rig, rig.ctl.stop()); // the simulator answers 05 "control not permitted" without control
+  assert.equal(r1.ok, false);
+  assert.match(r1.reason, /REJECTED/);
+  assert.equal(rig.written.length, 1, 'no automatic retry');
+  rig.clock.advance(30000);
+  assert.equal(rig.written.length, 1);
+  assert.equal((await settle(rig, rig.ctl.takeControl())).ok, true);
+  assert.equal((await settle(rig, rig.ctl.stop())).ok, true);
+  assert.equal(rig.sim.state.running, false);
+});
+
+test('recovery is not offered when the belt is stopped, even if locked out', async () => {
+  const rig = makeRig({ ignoreSpeed: true });
+  await toRunning(rig);
+  await settle(rig, rig.ctl.setSpeedMph(1.0)); // locks out
+  assert.equal((await settle(rig, rig.ctl.stop())).ok, true);
+  rig.clock.advance(3000);
+  assert.equal(rig.ctl.snapshot().recovery, false);
+  assert.equal(rig.ctl.snapshot().buttons.takeControl.ok, false);
 });
 
 // ---------- failures lock out; nothing retried ----------

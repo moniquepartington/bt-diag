@@ -70,6 +70,7 @@ export function createSim({ clock, emit, faults = {} }) {
         case 0x00:
           s.control = true;
           indicate(op, 0x01);
+          if (faults.takeControlRaisesSpeed && s.running) s.speedKmh += 0.5;
           if (faults.takeControlStartsBelt) startSequence();
           break;
         case 0x07:
@@ -100,6 +101,8 @@ export function createSim({ clock, emit, faults = {} }) {
           indicate(op, 0x02); // op code not supported
       }
     },
+    /** A new Bluetooth connection starts without control; the belt itself carries on (observed on the real treadmill). */
+    dropControl() { s.control = false; },
     /** Things a person can do at the console. */
     remoteStart() { startSequence(); },
     remoteStop() { stopSequence(); },
