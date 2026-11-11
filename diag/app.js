@@ -5,8 +5,9 @@ import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, 
 
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
+const BUILD = 'b3-short-uuid-fix'; // bump on each change so we can tell cached pages from new ones
 
-const report = { generatedAt: null, environment: {}, device: null, services: [], reads: {}, notifySamples: {}, events: [], errors: [] };
+const report = { build: BUILD, generatedAt: null, environment: {}, device: null, services: [], reads: {}, notifySamples: {}, events: [], errors: [] };
 const live = { device: null, subscribed: [] };
 
 // ---------- logging ----------
@@ -244,3 +245,5 @@ $('unlisten').addEventListener('click', stopListening);
 $('copy').addEventListener('click', copyReport);
 checkEnvironment();
 setConnected(false);
+$('build').textContent = `Build ${BUILD}`;
+log(`Page loaded (${BUILD}). Nothing has been sent to the treadmill.`);
