@@ -9,8 +9,9 @@ window.__bleCalls = [];
 
 function makeChar(uuid, props, value) {
   const el = new EventTarget();
+  // window.__shortUuids = true mimics Bluefy, which reports characteristic IDs like "2ACC".
   const c = Object.assign(el, {
-    uuid, properties: { read: false, write: false, writeWithoutResponse: false, notify: false, indicate: false, ...props }, value,
+    full: uuid, uuid: window.__shortUuids ? uuid.slice(4, 8).toUpperCase() : uuid, properties: { read: false, write: false, writeWithoutResponse: false, notify: false, indicate: false, ...props }, value,
     async readValue() { window.__bleCalls.push('read ' + uuid.slice(4, 8)); return this.value; },
     async startNotifications() { window.__bleCalls.push('notify ' + uuid.slice(4, 8)); c.timer = setInterval(() => { c.value = c.next(); c.dispatchEvent(new Event('characteristicvaluechanged')); }, 200); return c; },
     async stopNotifications() { clearInterval(c.timer); },
@@ -49,7 +50,7 @@ const server = {
   disconnect() { this.connected = false; device.dispatchEvent(new Event('gattserverdisconnected')); },
   async getPrimaryService(uuid) {
     if (!chars[uuid]) throw Object.assign(new Error('not found'), { name: 'NotFoundError' });
-    return { uuid, async getCharacteristics() { return chars[uuid]; }, async getCharacteristic(cu) { const c = chars[uuid].find((x) => x.uuid === cu); if (!c) throw Object.assign(new Error('nf'), { name: 'NotFoundError' }); return c; } };
+    return { uuid, async getCharacteristics() { return chars[uuid]; }, async getCharacteristic(cu) { const c = chars[uuid].find((x) => x.full === cu); if (!c) throw Object.assign(new Error('nf'), { name: 'NotFoundError' }); return c; } };
   },
 };
 const device = Object.assign(new EventTarget(), { name: 'FS-MOCK01', id: 'mock-id', gatt: server });

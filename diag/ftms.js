@@ -7,6 +7,14 @@ export const KMH_TO_MPH = 0.621371;
 /** Expand a 16-bit Bluetooth UUID (e.g. 0x1826) into the full 128-bit string. */
 export const uuid16 = (n) => `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
 
+/** Browsers differ: Bluefy reports characteristic IDs as "2ACC", Chrome as the full 128-bit string. Always compare normalized. */
+export function normalizeUuid(u) {
+  const s = String(u).toLowerCase();
+  if (/^[0-9a-f]{4}$/.test(s)) return uuid16(parseInt(s, 16));
+  if (/^[0-9a-f]{8}$/.test(s)) return `${s}-0000-1000-8000-00805f9b34fb`;
+  return s;
+}
+
 export const SERVICES = {
   fitnessMachine: uuid16(0x1826),
   deviceInfo: uuid16(0x180a),

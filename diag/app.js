@@ -1,7 +1,7 @@
 // Read-only BLE diagnostic. This file must never write to a characteristic.
 // Allowed GATT operations: connect, discover, readValue(), startNotifications()/stopNotifications().
 // (Enabling notifications writes the standard CCCD descriptor internally; that is not a control command.)
-import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, hex, text, decode } from './ftms.js';
+import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js';
 
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
@@ -42,7 +42,7 @@ const withTimeout = (p, ms, label) => Promise.race([p, new Promise((_, rej) => s
 
 function extraServiceUuids() {
   return $('extra').value.split(/[\s,]+/).map((s) => s.trim().toLowerCase()).filter(Boolean)
-    .map((s) => (/^[0-9a-f]{4}$/.test(s) ? uuid16(parseInt(s, 16)) : s));
+    .map(normalizeUuid);
 }
 
 const propList = (p) => Object.entries({ read: p.read, write: p.write, writeNoResp: p.writeWithoutResponse, notify: p.notify, indicate: p.indicate }).filter(([, v]) => v).map(([k]) => k);
@@ -80,15 +80,16 @@ async function discover() {
     try {
       service = await live.server.getPrimaryService(uuid);
     } catch (e) {
-      rows.push({ uuid, found: false, reason: e.name });
-      report.services.push({ uuid, found: false, reason: e.name });
+      const reason = e.name || e.message || 'not found';
+      rows.push({ uuid, found: false, reason });
+      report.services.push({ uuid, found: false, reason });
       continue;
     }
     const entry = { uuid, found: true, characteristics: [] };
     try {
       const chars = await service.getCharacteristics();
       for (const c of chars) {
-        const item = { uuid: c.uuid, properties: propList(c.properties), char: c };
+        const item = { uuid: normalizeUuid(c.uuid), properties: propList(c.properties), char: c };
         entry.characteristics.push(item);
       }
     } catch (e) {
@@ -186,7 +187,7 @@ async function stopListening() {
 }
 
 function onNotify(ev) {
-  const uuid = ev.target.uuid;
+  const uuid = normalizeUuid(ev.target.uuid);
   const dv = ev.target.value;
   const samples = (report.notifySamples[uuid] ??= []);
   if (samples.length < 25) samples.push(hex(dv));

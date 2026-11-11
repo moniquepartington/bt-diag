@@ -3,13 +3,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseTreadmillData, parseFeature, parseSpeedRange, parseInclineRange, parseTrainingStatus, parseMachineStatus, uuid16, hex } from '../diag/ftms.js';
+import { normalizeUuid, parseTreadmillData, parseFeature, parseSpeedRange, parseInclineRange, parseTrainingStatus, parseMachineStatus, uuid16, hex } from '../diag/ftms.js';
 
 const dv = (...bytes) => new DataView(new Uint8Array(bytes).buffer);
 
 test('uuid16 expands to a full UUID', () => {
   assert.equal(uuid16(0x1826), '00001826-0000-1000-8000-00805f9b34fb');
   assert.equal(uuid16(0x2ad9), '00002ad9-0000-1000-8000-00805f9b34fb');
+});
+
+test('normalizeUuid accepts Bluefy short IDs and full IDs', () => {
+  assert.equal(normalizeUuid('2ACC'), '00002acc-0000-1000-8000-00805f9b34fb');
+  assert.equal(normalizeUuid('00002ACC-0000-1000-8000-00805F9B34FB'), '00002acc-0000-1000-8000-00805f9b34fb');
+  assert.equal(normalizeUuid('0000fff1'), '0000fff1-0000-1000-8000-00805f9b34fb');
 });
 
 test('treadmill data, flags 0x058c: speed, distance, incline+ramp, energy, HR, elapsed', () => {
