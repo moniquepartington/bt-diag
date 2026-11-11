@@ -38,6 +38,16 @@ Status: built and tested against the SIMULATOR only. No command was sent to the 
 6. **Simulator assumptions** (instant telemetry, exact speeds, incline readback follows the target, remembered state) may differ from the real treadmill.
 7. A speed or incline changed from the remote during a workout is not detected or flagged (the engine does not fight it).
 
+## Staged limits-validation page (built, simulator-tested, NOT deployed, NOT run on hardware)
+
+`site/validate/` is a separate page so the hardware-validated control page stays as it is. Its raised limits exist only inside the Controller it creates for the unlocked stage; `VERIFIED_LIMITS` is untouched.
+
+- **Gate:** a stage is unlocked by typing its name (STAGE A) plus the three safety boxes. A stage that is not listed in `ENABLED_STAGES` cannot be unlocked at all. This build lists **only Stage A**; Stage B is built and tested but stays locked until its own approval, which means a separate deploy.
+- **Stage A** (up to 2.0 mph, incline 5): manual ladder with speed buttons 0.6, 1.0, 1.4, 2.0 and incline 0, 2, 5. The page times every command and records each reading once a second. It reports what speed the belt **restarts at after a Stop** (minimum, previous speed, or other), which settles the unconfirmed Pause/Resume assumption.
+- **Stage B** (up to 2.8 mph, incline 8): adds 2.4 and 2.8 mph and incline 8, plus a 100 s engine-driven validation workout with Pause and Resume (manual buttons switch off while it runs).
+- **Tests:** 17 new tests (130 in all). Includes the staged ladders on the simulator, the exact bytes, over-limit refusals, the unlock gate, the engine failing safe if the belt restarts at its previous speed, and a Stage B run with pause and resume. The real page was also driven against the simulator for Stage A, and for Stage B through a test-only server that enables it.
+- Raising the validated limits (which is what makes the five presets runnable) remains a separate step after Stage B is recorded and approved.
+
 ## Next hardware-validation milestone (needs separate approval)
 
 Staged, belt-empty validation of the preset range: raise the validated limits in two stages on a dedicated test page, each stage its own approval and its own remote-in-hand run:

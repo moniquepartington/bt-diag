@@ -40,7 +40,9 @@ export function createSim({ clock, emit, faults = {} }) {
   function stopSequence() {
     s.running = false;
     s.speedKmh = 0;
-    s.targetKmh = null; // after a stop the belt starts again at its minimum (seen on the real treadmill across connections)
+    // After a stop the belt starts again at its minimum (seen on the real treadmill across connections).
+    // faults.rememberTarget models the OTHER possibility: restarting at the previous target speed (not yet seen on hardware).
+    if (!faults.rememberTarget) s.targetKmh = null;
     machine(0x02, 0x01);
     training(0x0f);
   }
