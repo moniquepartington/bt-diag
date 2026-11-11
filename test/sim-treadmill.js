@@ -48,6 +48,8 @@ export function createSim({ clock, emit, faults = {} }) {
   function stopSequence() {
     s.running = false;
     s.speedKmh = 0;
+    // Seen on the real treadmill (Stage B): a Stop lowers the incline to 0 as well.
+    if (!faults.keepInclineOnStop) s.inclinePct = 0;
     // After a stop the belt starts again at its minimum (seen on the real treadmill across connections).
     // faults.rememberTarget models the OTHER possibility: restarting at the previous target speed (not yet seen on hardware).
     if (!faults.rememberTarget) s.targetKmh = null;

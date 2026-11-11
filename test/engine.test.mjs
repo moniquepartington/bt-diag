@@ -226,11 +226,42 @@ test('RESUME: tap, 3 s countdown with nothing sent, restart, verified state, THE
   assert.equal(r.ok, true);
   assert.equal(rig.engine.state, STATE.RUNNING);
   const sent = rig.written.slice(n).map(hexs);
-  assert.deepEqual(sent, ['07', '02 a0 00'], 'restart first, then only what differs from the treadmill\'s own readings');
+  assert.deepEqual(sent, ['07', '02 a0 00', '03 14 00'], 'restart first, then speed and incline (a Stop lowers the incline to 0 on the real treadmill)');
   const iStart = n, iSpeed = n + 1;
   assert.ok(rig.writtenAt[iStart] - tTap >= 3000, 'start waited for the countdown');
   assert.ok(rig.writtenAt[iSpeed] - rig.writtenAt[iStart] >= 3000, 'speed was set only after the belt was verified running (treadmill countdown)');
   assert.equal(rig.sim.state.speedKmh, 1.61); // 1.0 mph as the real treadmill reports it
+});
+
+test('PAUSE lowers the incline to 0 (as seen on hardware) and RESUME raises it again, after the restart is verified', async () => {
+  const rig = await started(LONG);
+  await run(rig, 40000); // interval 2: 1.0 mph, incline 2
+  assert.equal(rig.sim.state.inclinePct, 2);
+  await settle(rig, rig.engine.pause());
+  assert.equal(rig.sim.state.inclinePct, 0, 'the stop lowered the incline');
+  const n = rig.written.length;
+  assert.equal((await settle(rig, rig.engine.resume(), 30000)).ok, true);
+  assert.equal(rig.sim.state.inclinePct, 2, 'incline restored');
+  assert.deepEqual(rig.written.slice(n).map(hexs), ['07', '02 a0 00', '03 14 00']);
+  assert.ok(rig.writtenAt[n + 2] > rig.writtenAt[n + 1] && rig.writtenAt[n + 1] >= rig.writtenAt[n] + 3000, 'incline only after the speed, speed only after the verified restart');
+});
+
+test('RESUME also works on a treadmill that KEEPS the incline across a stop: only the speed is restored', async () => {
+  const rig = await started(LONG, { keepInclineOnStop: true });
+  await run(rig, 40000);
+  await settle(rig, rig.engine.pause());
+  assert.equal(rig.sim.state.inclinePct, 2);
+  const n = rig.written.length;
+  assert.equal((await settle(rig, rig.engine.resume(), 30000)).ok, true);
+  assert.deepEqual(rig.written.slice(n).map(hexs), ['07', '02 a0 00']);
+});
+
+test('STOP at the end of a workout leaves the incline at 0 and the belt stopped', async () => {
+  const w = mini(['Warmup', 10, 1.0, 0], ['Training', 10, 1.5, 4]);
+  const rig = await started(w);
+  await until(rig, () => rig.engine.state === STATE.COMPLETED, 60000);
+  assert.equal(rig.sim.state.inclinePct, 0);
+  assert.equal(rig.sim.state.running, false);
 });
 
 test('RESUME: the clock restarts only after the targets are restored and continues from the paused position', async () => {

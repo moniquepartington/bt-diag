@@ -73,6 +73,25 @@ Incline follow-up run (separate session, belt at its minimum speed): incline **2
 - **Simulator** now snaps commanded speeds to the 0.1 mph grid and reports them the way the real treadmill does (1.61, 2.25, 3.22 km/h). All tests, including full preset runs, pass against it.
 - 135 tests pass (18 decoders, 47 controller, 52 engine, 18 staged validation). `VERIFIED_LIMITS` is still 1.0 mph and incline 2.
 
+### Stage B hardware results (validate page v2, belt empty): PASSED
+
+Run: take control, start, speed 2.0 / 2.4 / 2.8 mph, incline 2 / 5 / 8 / 0, stop; then the engine's 100 s validation workout with a pause and a resume. Every command acknowledged in 0.1 s and confirmed by the readings; no lockouts, no refusals. User note: "During pause mode, belt stopped but incline decreases to 0. All else ran as written."
+
+| Question | Result |
+|---|---|
+| Speeds up to 2.8 mph, incline up to 8 | Accepted. 2.4 and 2.8 mph read 3.86 and 4.50 km/h. Incline 8 reached and held. |
+| Engine boundaries | Intervals changed within 0.1 to 0.25 s of schedule (intervals at 20.1, 20.0, 20.0, 20.2 s). Each change is speed first, then incline, about 1 s apart. |
+| Pause | Clock frozen at the tap. Belt stopped, confirmed 8.2 s after the tap from 2.8 mph. **The incline dropped to 0 at the stop.** |
+| Pause freeze accuracy | Workout ran 100.0 s of workout time across a 62.2 s pause (end of workout at 252.7 + 100 + 62.2 = 414.9 s; observed 415.0 s). |
+| Resume | Silent 3 s countdown, then start (the treadmill's own 3 s countdown), restart verified at the minimum, speed back to 2.8 mph, incline back to 8; running again 8.3 s after the tap. The engine restored the incline because it compares with the treadmill's own readings. |
+| End of workout | Last interval ended, stop sent, confirmed 5.7 s later from 1.8 mph. Workout COMPLETED. |
+| Stop time grows with speed | 2.0 mph: 6.6 s. 2.8 mph: 8.2 to 9.0 s. 1.8 mph: 5.7 s. About 0.6 km/h per second of deceleration, so 5 mph would take about 13 s, close to the 15 s stop-confirmation limit (only relevant if limits are ever raised beyond the presets). |
+| Idle reading gap | One 4.4 s gap before Start was sent; it was allowed by the new 6 s idle limit (the old 3 s limit would have refused it). |
+
+**Telemetry gaps, corrected diagnosis.** Reading the two Stage A reports and the Stage B report together: (1) every command write is followed by one missed reading, giving a 2.0 s gap that the 3 s limit tolerates; (2) the longer gaps (3.3 s, 2.6 s, 4.4 s) all coincide with Start taps. Those taps call `window.confirm()`, which freezes the page's JavaScript while the dialog is open, so incoming Bluetooth readings are not processed and the next check sees old data. The diagnostic page, which has no dialog, never showed such gaps. So the "idle pauses" were most likely the page's own blocking dialog, not the treadmill, and the 6 s idle limit was approved on that wrong diagnosis. Proposed fix: non-blocking in-page confirmations, then re-measure before deciding whether to restore the 3 s limit.
+
+Simulator and tests updated to model the incline reset on Stop (and the keep-incline alternative). 138 tests pass.
+
 ## Next hardware-validation milestone (needs separate approval)
 
 Staged, belt-empty validation of the preset range: raise the validated limits in two stages on a dedicated test page, each stage its own approval and its own remote-in-hand run:
