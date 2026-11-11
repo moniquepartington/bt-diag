@@ -70,7 +70,15 @@ Built after the disconnect finding. When the page is locked out and the belt is 
 - Stop is also available before Take control (the treadmill may reject it without control; the page then locks and the user takes control and tries again manually).
 - Reconnects ignore events from older connections so one acknowledgment is never counted twice.
 - Tests: 61 pass, including 8 recovery cases. Real page driven against the simulator through start, disconnect, reconnect, take control, stop (writes exactly `00` then `08 01`).
-- **Not tested on hardware:** whether a new connection to the real treadmill can take control and stop a belt that is already running, and what Take control does to a running belt.
+### Recovery mode on the real treadmill (build c4): WORKS
+
+Two real recoveries in one session, belt empty at 0.6 mph:
+1. The belt was already moving when the page opened (left running from the earlier test). The page locked with BELT ACTIVE UNEXPECTEDLY. **Take control** was acknowledged (`80 00 01`) and the 6 s watch saw no speed change.
+2. Start, then **Disconnect**, then reconnect: **Take control** acknowledged (`80 00 01`) with the belt running, no speed change; **Stop** (`08 01`) acknowledged (`80 08 01`) and the belt stopped 2.6 s later (machine status `02 01`), confirmed from the readings.
+
+So: a fresh connection can take control of a belt that is already running and stop it, from the page. Taking control does not change a running belt (seen twice). Recovery is verified for a clean disconnect; an abrupt link loss (range) is not tested.
+
+New observation: while the belt was idle, speed readings paused for 2.6 s (and for more than 3 s earlier). The 3 s freshness limit is too tight at idle. Readings were steady while the belt ran.
 
 ## Can Take Control move the belt on this device? Two observations say no, not proven in general
 
