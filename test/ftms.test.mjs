@@ -40,6 +40,32 @@ test('treadmill data, flags 0x058c: speed, distance, incline+ramp, energy, HR, e
   assert.equal(d.fields.elapsedS, 300);
 });
 
+// Packets below were captured from a real FS-BT-C1 (belt idle) in the b4 diagnostic report.
+test('captured idle packet 1 (flags 0x058c) parses with no warnings', () => {
+  const d = parseTreadmillData(dv(0x8c, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0, 0, 0));
+  assert.deepEqual(d.warnings, []);
+  assert.equal(d.fields.speedKmh, 0);
+  assert.equal(d.fields.inclinePct, 0);
+  assert.equal(d.fields.elapsedS, 0);
+});
+
+test('captured idle packet 2 (flags 0x2001) is kept raw as a vendor extension, not a warning', () => {
+  const d = parseTreadmillData(dv(0x01, 0x20, 0, 0, 0));
+  assert.deepEqual(d.warnings, []);
+  assert.deepEqual(d.fields, {});
+  assert.equal(d.vendorExtension.bytes, '00 00 00');
+  assert.equal(d.vendorExtension.reservedFlags, '0x2000');
+});
+
+test('captured speed/incline ranges and idle training status', () => {
+  const s = parseSpeedRange(dv(0x60, 0x00, 0x25, 0x03, 0x0a, 0x00));
+  assert.deepEqual([s.minKmh, s.maxKmh, s.stepKmh], [0.96, 8.05, 0.1]);
+  assert.ok(Math.abs(s.maxMph - 5.0) < 0.01);
+  assert.equal(parseTrainingStatus(dv(0x01, 0x01)).name, 'Idle');
+  const f = parseFeature(dv(0xdc, 0x56, 0, 0, 0x0f, 0, 0, 0));
+  assert.deepEqual(f.targetSettings, ['Speed target', 'Inclination target', 'Resistance target', 'Power target']);
+});
+
 test('flags bit 0 set means NO speed field (spec inversion)', () => {
   const d = parseTreadmillData(dv(0x01, 0x00));
   assert.equal(d.fields.speedKmh, undefined);

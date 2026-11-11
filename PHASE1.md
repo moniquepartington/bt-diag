@@ -1,54 +1,61 @@
 # Phase 1: Bluetooth discovery report
 
-Status: diagnostic built and tested against a **simulated** device only. Nothing here has been tested on the Rockare W400A.
+Status: read-only discovery **completed on the real FS-BT-C1** (iPhone, iOS 18.7, Bluefy 3.9.3, diagnostic build b4, belt idle). No control command has ever been sent.
 
 ## Architecture recommendation
 
-**Direct Web Bluetooth in Bluefy, standard FTMS, static HTTPS page. No server.**
+**Direct Web Bluetooth in Bluefy, standard FTMS, static HTTPS page on GitHub Pages. No server.**
 
-Why:
-- The only public FS-BT-C1 implementation ([aradix85/fitshow-treadmill-accessible](https://github.com/aradix85/fitshow-treadmill-accessible), MIT) talks to the module with **standard Bluetooth FTMS** (Fitness Machine Service, 0x1826). It adds no custom framing, checksum or handshake. Control commands are 1 to 3 bytes.
-- Web Bluetooth handles FTMS fine, so there is nothing a Python bridge would add except a laptop that must stay on.
-- Fallback if Bluefy proves unreliable: Python/Bleak on a laptop. The same repo already does this and is MIT-licensed. Python is not installed on this PC.
+- The module exposes standard Bluetooth FTMS (service 0x1826), so no custom framing or checksum is needed.
+- Bluefy connected, discovered services, read values and received notifications on the first successful build.
+- Fallback if Bluefy proves unreliable later: Python/Bleak on a laptop (the reference project does this, MIT license). Not needed so far.
 
-Needs a decision later (not now): the page must be served over HTTPS. Options: GitHub Pages (free, needs a GitHub account; page is public but holds no secrets) or Netlify Drop (drag the `diag` folder; an unclaimed site is deleted after about an hour unless you sign up).
+## Verified on the user's hardware (read-only)
 
-## Verified (from reading code and docs, not from your treadmill)
+| Item | Result |
+|---|---|
+| Bluefy connects and reads | Yes |
+| Module | FITSHOW FS-BT-C1, firmware V2.6.3, hardware 1.0, software 1.4.3 |
+| Services | FTMS 0x1826, Device Info 0x180A, vendor 0xFFF0. No battery or running-speed service |
+| FTMS characteristics | Feature 2ACC (read), Treadmill Data 2ACD (notify), Training Status 2AD3 (read, notify), Machine Status 2ADA (notify), Control Point 2AD9 (write, indicate), speed range 2AD4, incline range 2AD5, plus 2AD7/2AD8 (read) |
+| Vendor service | FFF1 notify, FFF2 write-without-response (purpose unknown; not needed, not touched) |
+| Target settings supported | Speed, inclination, resistance, power |
+| Speed range | 0.96 to 8.05 km/h = **0.60 to 5.00 mph**, step 0.1 km/h (about 0.062 mph) |
+| Incline range | **0 to 12 %, step 1** |
+| Training status at idle | `01 01` (Idle) |
+| Treadmill Data | Two packet types alternate about once per second: flags `0x058c` (speed, distance, incline, energy, HR, elapsed time) and flags `0x2001` with 3 extra bytes (bit 13 is reserved in the spec; bytes were `00 00 00` at idle) |
 
-- FS-BT-C1 module reports manufacturer `FITSHOW`, device name `FS-` plus hex. Matches the expected module.
-- Exposes FTMS characteristics: Control Point `2AD9`, Treadmill Data `2ACD`, Training Status `2AD3`, Machine Status `2ADA`, plus a vendor service `FFF0` / char `FFF1` (notify).
-- Reference control opcodes (standard FTMS): `00` request control, `01` reset, `02` set speed (km/h x 100, uint16 LE), `03` set incline (% x 10, int16 LE), `07` start, `08 01` stop. **None are used by the diagnostic.**
-- FitShow and Kinni are reported to work against FTMS-style bridges (ESPHome-Treadmill-FTMS project), which supports the FTMS reading.
-- Only one treadmill was tested by the reference author (VirtuFit TR600i). Behaviour on the W400A is unconfirmed.
+Fit with the presets: all preset speeds (1.8 to 2.8 mph) and incline levels (0 to 8) are inside the reported ranges. Because speed steps are 0.1 km/h, a preset speed would land within about 0.03 mph of the target.
 
-## Unknowns and risks
+## Not verified (no hardware evidence yet)
 
 | Item | Why it matters |
 |---|---|
-| Does Bluefy list the device and allow GATT access? | Whole architecture hinges on this. Test 1. |
-| Does the W400A expose FTMS at all, or only the vendor service? | Your firmware shows 1.4.3; the reference was 1.4.2. |
-| Real speed and incline limits | Read from `2AD4` / `2AD5` by the diagnostic. Do not hardcode. W400A is MPH and incline levels 0-12; FTMS uses km/h and %. The mapping from level to % is unknown. |
-| Pairing/bonding requirement | Unknown on iOS. |
-| One connection at a time | FitShow or Kinni connected to the treadmill will likely block Bluefy. Force-quit them first. |
-| Reference docs have a field-table error (their table disagrees with the FTMS spec for Treadmill Data) | The diagnostic follows the spec and shows raw bytes so we can check. |
-| Training Status codes | Reference labels `0x0E` "warming up"; the spec calls it "Pre-workout". Raw codes are logged. |
-| Incline above the machine limit | Reference notes the treadmill silently ignores it and still says OK. Never trust an OK as proof of the actual state. |
-| Belt behaviour on disconnect | Unknown. Do not assume Bluetooth loss stops the belt. |
-| Background / locked-phone behaviour | Unknown; Phase 5. |
+| Any control command (request control, start, speed, incline, stop) | Never sent. Needs your approval and a safety review |
+| Incline "level" equals reported percent | Ranges match 0-12, but this is an inference until incline is read while the treadmill is at a known level |
+| Live values while the belt moves | Idle data only so far. Speed units and the meaning of the 0x2001 packet's extra bytes are unconfirmed |
+| Whether Control Point needs pairing/bonding on iOS | Unknown |
+| What the belt does if Bluetooth drops | Unknown. Never assume it stops |
+| Behaviour with the screen locked or Bluefy backgrounded | Unknown (Phase 5) |
+| Single-connection conflict with FitShow/Kinni | Assumed; keep them force-quit |
+| Reference project's Training Status labels | Spec says 0x0E is Pre-workout, reference says "warming up". Raw codes are logged |
+| Treadmill silently ignores out-of-range values while replying OK (reference project's observation) | Do not trust an OK; always read back actual state |
 
 ## Safety
 
-- Diagnostic never writes to a characteristic. Enforced three ways: no write calls in source (checked by a unit test), the Control Point is never opened, and the simulated-device test counted zero write attempts.
-- Enabling live notifications writes only the standard notification switch (CCCD). It is not a control command.
-- Keep the physical stop/safety key within reach for all tests. An on-screen button is not an emergency stop.
+- The diagnostic never writes to a characteristic. Enforced by: no write calls in source (unit test), the Control Point is never opened, and the simulated-device test counts zero write attempts.
+- Enabling live notifications writes only the standard notification switch. It is not a control command.
+- Reports hide the serial number and the browser's device id.
+- The physical stop/safety key is the real emergency stop. An on-screen button is not.
 
-## Tests run (no hardware)
+## Tests run
 
-- 11 unit tests for the FTMS decoders, using synthetic data built from the spec: all pass (`node --test test/ftms.test.mjs`).
-- Page driven in a desktop browser against a fake device (`test/mock-ble.js`): connect, discovery, reads, live data, disconnect, report copy all worked; 0 write attempts.
-- Not tested: real Bluefy, real iPhone, real treadmill.
+- 15 unit tests for the decoders, including packets captured from the real module at idle: `node --test test/ftms.test.mjs`.
+- Page driven against a simulated device with Bluefy-style short IDs: connect, reads, both packet types, report redaction, 0 write attempts.
+- Real device: read-only discovery and idle notifications only.
 
 ## Files
 
-- `diag/index.html`, `diag/app.js`, `diag/ftms.js` is the diagnostic (host these three together).
-- `test/ftms.test.mjs`, `test/mock-ble.js` are tests only; do not upload.
+- `diag/` is the published diagnostic (index.html, app.js, ftms.js). Bump the version in all three places on each change to defeat caching.
+- `test/` is tests only and is not published.
+- `.github/workflows/pages.yml` deploys `diag/` to GitHub Pages on every push to `main`.

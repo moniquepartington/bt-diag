@@ -103,7 +103,14 @@ export function parseTreadmillData(dv) {
     if (bit(11)) { need(2, 'remaining time'); f.remainingS = dv.getUint16(o, true); o += 2; }
     if (bit(12)) { need(4, 'force/power'); f.forceN = dv.getInt16(o, true); f.powerW = dv.getInt16(o + 2, true); o += 4; }
 
-    if (o !== dv.byteLength) out.warnings.push(`${dv.byteLength - o} unparsed trailing byte(s)`);
+    if (o !== dv.byteLength) {
+      // Bits 13-15 are reserved in the spec. This FS-BT-C1 sends a second packet type with bit 13 set
+      // (e.g. "01 20 00 00 00"); we keep its bytes verbatim instead of guessing a meaning.
+      const reserved = flags & 0xe000;
+      const rest = hex(new DataView(dv.buffer, dv.byteOffset + o, dv.byteLength - o));
+      if (reserved) out.vendorExtension = { reservedFlags: '0x' + reserved.toString(16), bytes: rest };
+      else out.warnings.push(`${dv.byteLength - o} unparsed trailing byte(s)`);
+    }
   } catch (e) {
     out.warnings.push(e.message);
   }

@@ -24,7 +24,7 @@ function makeChar(uuid, props, value) {
 
 let tick = 0;
 const treadmillData = makeChar(u(0x2acd), { notify: true }, dv());
-treadmillData.next = () => { tick++; return dv(0x8c, 0x05, 0xc8, 0x00, 0x10, 0x27, 0x00, 0x32, 0x00, 0x00, 0x00, 0x0a, 0x00, 0xff, 0xff, 0xff, 0x00, tick & 0xff, 0x00); };
+treadmillData.next = () => { tick++; if (tick % 2) return dv(0x01, 0x20, 0, 0, 0); /* second packet type, as on the real device */ return dv(0x8c, 0x05, 0xc8, 0x00, 0x10, 0x27, 0x00, 0x32, 0x00, 0x00, 0x00, 0x0a, 0x00, 0xff, 0xff, 0xff, 0x00, tick & 0xff, 0x00); };
 const training = makeChar(u(0x2ad3), { notify: true, read: true }, dv());
 training.next = () => dv(0x00, 0x0d);
 const machine = makeChar(u(0x2ada), { notify: true }, dv());
@@ -39,7 +39,7 @@ const chars = {
     makeChar(u(0x2ad9), { write: true, indicate: true }, dv()),
     machine,
   ],
-  [u(0x180a)]: [makeChar(u(0x2a29), { read: true }, str('MOCK-MFR')), makeChar(u(0x2a24), { read: true }, str('MOCK-MODEL'))],
+  [u(0x180a)]: [makeChar(u(0x2a25), { read: true }, str('MOCK-SERIAL-123')), makeChar(u(0x2a29), { read: true }, str('MOCK-MFR')), makeChar(u(0x2a24), { read: true }, str('MOCK-MODEL'))],
   [u(0xfff0)]: [makeChar(u(0xfff1), { notify: true }, dv())],
 };
 chars[u(0xfff0)][0].next = () => dv(0xaa, 0xbb);

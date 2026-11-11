@@ -1,11 +1,11 @@
 // Read-only BLE diagnostic. This file must never write to a characteristic.
 // Allowed GATT operations: connect, discover, readValue(), startNotifications()/stopNotifications().
 // (Enabling notifications writes the standard CCCD descriptor internally; that is not a control command.)
-import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js?v=b4';
+import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js?v=b5';
 
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
-const BUILD = 'b4'; // bump on each change (also in index.html and the ftms.js import) to defeat browser caching
+const BUILD = 'b5'; // bump on each change (also in index.html and the ftms.js import) to defeat browser caching
 
 const report = { build: BUILD, generatedAt: null, environment: {}, device: null, services: [], reads: {}, notifySamples: {}, events: [], errors: [] };
 const live = { device: null, subscribed: [] };
@@ -57,7 +57,7 @@ async function connect() {
     log('Opening device chooser…');
     const device = await navigator.bluetooth.requestDevice(request);
     live.device = device;
-    report.device = { name: device.name ?? '(no name)', id: device.id };
+    report.device = { name: device.name ?? '(no name)' }; // the browser's device id is deliberately not recorded
     log(`Selected: ${report.device.name}`);
     device.addEventListener('gattserverdisconnected', () => { log('Device disconnected.', 'warn'); setConnected(false); });
 
@@ -67,7 +67,8 @@ async function connect() {
     setConnected(true);
     await discover();
   } catch (e) {
-    fail('Connect', e);
+    if (!e.name && !e.message) log('Device chooser was cancelled or failed (Bluefy gave no details). Tap Scan & connect to try again.', 'warn');
+    else fail('Connect', e);
     if (e.name === 'NotFoundError') log('No device chosen. If the treadmill was not listed: close FitShow/Kinni completely, power-cycle the console, then try "Show all devices".', 'warn');
   }
 }
@@ -132,6 +133,11 @@ async function readSafeCharacteristics(rows) {
       const label = READABLE.get(c.uuid);
       try {
         const dv = await c.char.readValue();
+        if (c.uuid === uuid16(0x2a25)) { // serial number: shown nowhere and never put in the report
+          report.reads[label] = { value: '(hidden)' };
+          addRead(label, '(read OK, hidden from report)', '');
+          continue;
+        }
         const decoded = decode(c.uuid, dv);
         const value = decoded ?? (c.uuid === uuid16(0x2a19) ? `${dv.getUint8(0)} %` : text(dv));
         report.reads[label] = decoded ? { ...decoded } : { value, raw: hex(dv) };
@@ -159,6 +165,7 @@ function addRead(label, value, raw) {
 // ---------- live data (notifications only) ----------
 async function startListening() {
   if (!live.server?.connected) return log('Not connected.', 'warn');
+  live.t0 = performance.now();
   const wanted = [...NOTIFY_DEFAULT];
   if ($('fff1').checked) wanted.push(CHARS.vendorFff1);
   for (const uuid of wanted) {
@@ -187,21 +194,27 @@ async function stopListening() {
   log('Stopped listening.');
 }
 
+const seenLogs = new Set();
+function logOnce(msg, kind) { if (!seenLogs.has(msg)) { seenLogs.add(msg); log(msg, kind); } }
+
 function onNotify(ev) {
   const uuid = normalizeUuid(ev.target.uuid);
   const dv = ev.target.value;
+  // Keep each DISTINCT payload once (with seconds since listening began), up to 80 per characteristic.
   const samples = (report.notifySamples[uuid] ??= []);
-  if (samples.length < 25) samples.push(hex(dv));
+  const h = hex(dv);
+  if (samples.length < 80 && !samples.some((s) => s.hex === h)) samples.push({ t: +((performance.now() - live.t0) / 1000).toFixed(1), hex: h });
   const d = decode(uuid, dv);
-  $('liveRaw').textContent = `${uuid.slice(4, 8)}: ${hex(dv)}`;
+  $('liveRaw').textContent = `${uuid.slice(4, 8)}: ${h}`;
   if (!d) return;
   if (uuid === CHARS.treadmillData) {
-    const f = d.fields;
-    $('vSpeed').textContent = f.speedKmh != null ? `${f.speedKmh.toFixed(2)} km/h · ${f.speedMph.toFixed(2)} mph` : '—';
-    $('vIncline').textContent = f.inclinePct != null ? `${f.inclinePct.toFixed(1)} %` : '—';
-    $('vDist').textContent = f.distanceM != null ? `${f.distanceM} m` : '—';
-    $('vTime').textContent = f.elapsedS != null ? `${f.elapsedS} s` : '—';
-    if (d.warnings.length) log(`Treadmill data warning: ${d.warnings.join('; ')} (flags ${d.flags}, ${d.raw})`, 'warn');
+    const f = d.fields; // each packet carries only some fields; only update the ones present
+    if (f.speedKmh != null) $('vSpeed').textContent = `${f.speedKmh.toFixed(2)} km/h · ${f.speedMph.toFixed(2)} mph`;
+    if (f.inclinePct != null) $('vIncline').textContent = `${f.inclinePct.toFixed(1)} %`;
+    if (f.distanceM != null) $('vDist').textContent = `${f.distanceM} m`;
+    if (f.elapsedS != null) $('vTime').textContent = `${f.elapsedS} s`;
+    for (const w of d.warnings) logOnce(`Treadmill data warning: ${w} (flags ${d.flags}, ${d.raw})`, 'warn');
+    if (d.vendorExtension) logOnce(`Second packet type seen (flags ${d.flags}); extra bytes kept raw: ${d.vendorExtension.bytes}`);
   } else if (uuid === CHARS.trainingStatus) {
     $('vStatus').textContent = d.name;
   } else if (uuid === CHARS.machineStatus) {
@@ -212,6 +225,7 @@ function onNotify(ev) {
 // ---------- disconnect / report ----------
 function setConnected(on) {
   $('disconnect').disabled = !on;
+  $('connect').disabled = on || !(report.environment.webBluetooth && report.environment.secureContext);
   $('listen').disabled = !on;
   $('unlisten').disabled = !on;
   $('state').textContent = on ? 'Connected' : 'Not connected';
