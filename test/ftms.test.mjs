@@ -57,6 +57,30 @@ test('captured idle packet 2 (flags 0x2001) is kept raw as a vendor extension, n
   assert.equal(d.vendorExtension.reservedFlags, '0x2000');
 });
 
+// Captured from the real module while the belt ran (empty belt, started and adjusted from the treadmill's own remote).
+test('captured moving packet: 1.44 km/h, 14 m, 2.0 %, 1 kcal, 44 s', () => {
+  const d = parseTreadmillData(dv(0x8c, 0x05, 0x90, 0x00, 0x0e, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x01, 0x00, 0xff, 0xff, 0xff, 0x00, 0x2c, 0x00));
+  assert.deepEqual(d.warnings, []);
+  assert.equal(d.fields.speedKmh, 1.44);
+  assert.equal(d.fields.distanceM, 14);
+  assert.equal(d.fields.inclinePct, 2);
+  assert.equal(d.fields.energyKcal, 1);
+  assert.equal(d.fields.elapsedS, 44);
+  assert.ok(Math.abs(d.fields.speedMph - 0.895) < 0.001); // about 0.9 mph
+});
+
+test('captured speed steps 0x60,0x70,0x80,0x90 are about 0.1 mph apart', () => {
+  const mph = [0x60, 0x70, 0x80, 0x90].map((b) => parseTreadmillData(dv(0x8c, 0x05, b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0, 0, 0)).fields.speedMph);
+  for (let i = 1; i < mph.length; i++) assert.ok(Math.abs(mph[i] - mph[i - 1] - 0.1) < 0.005);
+});
+
+test('captured running-state vendor bytes and training/machine status codes', () => {
+  assert.equal(parseTreadmillData(dv(0x01, 0x20, 0x01, 0, 0)).vendorExtension.bytes, '01 00 00');
+  assert.equal(parseTrainingStatus(dv(0x01, 0x0e)).name, 'Pre-workout');
+  assert.equal(parseTrainingStatus(dv(0x01, 0x0f)).name, 'Post-workout');
+  assert.equal(parseMachineStatus(dv(0x04)).name, 'Started or resumed by user');
+});
+
 test('captured speed/incline ranges and idle training status', () => {
   const s = parseSpeedRange(dv(0x60, 0x00, 0x25, 0x03, 0x0a, 0x00));
   assert.deepEqual([s.minKmh, s.maxKmh, s.stepKmh], [0.96, 8.05, 0.1]);

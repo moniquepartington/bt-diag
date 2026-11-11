@@ -1,6 +1,6 @@
 # Phase 1: Bluetooth discovery report
 
-Status: read-only discovery **completed on the real FS-BT-C1** (iPhone, iOS 18.7, Bluefy 3.9.3, diagnostic build b4, belt idle). No control command has ever been sent.
+Status: read-only discovery **completed on the real FS-BT-C1** (iPhone, iOS 18.7, Bluefy 3.9.3, diagnostic builds b4 and b5, belt idle and moving). No control command has ever been sent.
 
 ## Architecture recommendation
 
@@ -25,6 +25,20 @@ Status: read-only discovery **completed on the real FS-BT-C1** (iPhone, iOS 18.7
 | Training status at idle | `01 01` (Idle) |
 | Treadmill Data | Two packet types alternate about once per second: flags `0x058c` (speed, distance, incline, energy, HR, elapsed time) and flags `0x2001` with 3 extra bytes (bit 13 is reserved in the spec; bytes were `00 00 00` at idle) |
 
+### Moving-belt capture (build b5, read-only; belt empty, started and adjusted from the treadmill's own remote)
+
+| Observation | Detail |
+|---|---|
+| Start sequence | Machine Status `04` (started) and Training Status `0x0E` (pre-workout), then **3 s later** Training Status `0x0D` (running) and a second `04`; belt reported its first speed at the same moment. The belt starts at the minimum, 0.96 km/h (about 0.6 mph) |
+| Stop sequence | Machine Status `02 01` (stopped by user) and Training Status `0x0F` (post-workout). Training Status goes back to idle `0x01` once settled (not yet seen in a capture) |
+| Speed steps seen | `0x60`, `0x70`, `0x80`, `0x90` = 0.96, 1.12, 1.28, 1.44 km/h = about 0.6, 0.7, 0.8, 0.9 mph. Steps of 0.16 km/h are **0.1 mph**, so the console's native step is 0.1 mph (strongly suggests, not yet confirmed against what the console displayed) |
+| Incline readings | 2.0 %, then 4.0 and 5.0 % one second apart. The reading changed immediately, so it follows the console's level setting rather than the physical ramp position |
+| Distance / energy / elapsed | Distance climbed 0 to 27 m over 76 s, energy 1 kcal, elapsed time counted real seconds from the moment the belt started |
+| Heart rate, energy per hour/min | 0 and "not available" |
+| Second packet type | Extra bytes `00 00 00` at idle, `01 00 00` once the belt was running. Looks like a running-state flag. Unconfirmed; return to `00` after stopping was not captured (sample cap, fixed in b6) |
+
+Not yet confirmed because no console readings were noted: that the console showed 0.6 to 0.9 mph and levels 2 and 5 for these values.
+
 Fit with the presets: all preset speeds (1.8 to 2.8 mph) and incline levels (0 to 8) are inside the reported ranges. Because speed steps are 0.1 km/h, a preset speed would land within about 0.03 mph of the target.
 
 ## Not verified (no hardware evidence yet)
@@ -32,8 +46,8 @@ Fit with the presets: all preset speeds (1.8 to 2.8 mph) and incline levels (0 t
 | Item | Why it matters |
 |---|---|
 | Any control command (request control, start, speed, incline, stop) | Never sent. Needs your approval and a safety review |
-| Incline "level" equals reported percent | Ranges match 0-12, but this is an inference until incline is read while the treadmill is at a known level |
-| Live values while the belt moves | Idle data only so far. Speed units and the meaning of the 0x2001 packet's extra bytes are unconfirmed |
+| Incline "level" equals reported percent | Ranges match 0-12 and readings of 2 and 5 appeared after the remote's incline presses; console display was not recorded, so unconfirmed |
+| Whether the treadmill rounds a requested speed to its 0.1 mph grid | Matters for exact preset speeds; only testable with a control command |
 | Whether Control Point needs pairing/bonding on iOS | Unknown |
 | What the belt does if Bluetooth drops | Unknown. Never assume it stops |
 | Behaviour with the screen locked or Bluefy backgrounded | Unknown (Phase 5) |
@@ -50,7 +64,7 @@ Fit with the presets: all preset speeds (1.8 to 2.8 mph) and incline levels (0 t
 
 ## Tests run
 
-- 15 unit tests for the decoders, including packets captured from the real module at idle: `node --test test/ftms.test.mjs`.
+- 18 unit tests for the decoders, including packets captured from the real module at idle: `node --test test/ftms.test.mjs`.
 - Page driven against a simulated device with Bluefy-style short IDs: connect, reads, both packet types, report redaction, 0 write attempts.
 - Real device: read-only discovery and idle notifications only.
 

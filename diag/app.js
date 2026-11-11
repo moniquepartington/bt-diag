@@ -1,11 +1,11 @@
 // Read-only BLE diagnostic. This file must never write to a characteristic.
 // Allowed GATT operations: connect, discover, readValue(), startNotifications()/stopNotifications().
 // (Enabling notifications writes the standard CCCD descriptor internally; that is not a control command.)
-import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js?v=b5';
+import { SERVICES, CHARS, READABLE, NOTIFY_DEFAULT, uuid16, normalizeUuid, hex, text, decode } from './ftms.js?v=b6';
 
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
-const BUILD = 'b5'; // bump on each change (also in index.html and the ftms.js import) to defeat browser caching
+const BUILD = 'b6'; // bump on each change (also in index.html and the ftms.js import) to defeat browser caching
 
 const report = { build: BUILD, generatedAt: null, environment: {}, device: null, services: [], reads: {}, notifySamples: {}, events: [], errors: [] };
 const live = { device: null, subscribed: [] };
@@ -166,6 +166,8 @@ function addRead(label, value, raw) {
 async function startListening() {
   if (!live.server?.connected) return log('Not connected.', 'warn');
   live.t0 = performance.now();
+  live.lastKey = {};
+  report.notifySamples = {};
   const wanted = [...NOTIFY_DEFAULT];
   if ($('fff1').checked) wanted.push(CHARS.vendorFff1);
   for (const uuid of wanted) {
@@ -200,11 +202,18 @@ function logOnce(msg, kind) { if (!seenLogs.has(msg)) { seenLogs.add(msg); log(m
 function onNotify(ev) {
   const uuid = normalizeUuid(ev.target.uuid);
   const dv = ev.target.value;
-  // Keep each DISTINCT payload once (with seconds since listening began), up to 80 per characteristic.
-  const samples = (report.notifySamples[uuid] ??= []);
   const h = hex(dv);
-  if (samples.length < 80 && !samples.some((s) => s.hex === h)) samples.push({ t: +((performance.now() - live.t0) / 1000).toFixed(1), hex: h });
   const d = decode(uuid, dv);
+  // Record only CHANGES (with seconds since listening began). For Treadmill Data, distance/energy/elapsed
+  // tick constantly, so a change means speed, incline, packet type or the vendor bytes changed.
+  const samples = (report.notifySamples[uuid] ??= []);
+  const kind = uuid === CHARS.treadmillData && d ? d.flags : '';
+  const key = kind ? `${d.fields.speedKmh}|${d.fields.inclinePct}|${d.vendorExtension?.bytes ?? ''}` : h;
+  const lastKey = (live.lastKey ??= {});
+  if (lastKey[uuid + kind] !== key && samples.length < 400) {
+    lastKey[uuid + kind] = key;
+    samples.push({ t: +((performance.now() - live.t0) / 1000).toFixed(1), hex: h });
+  }
   $('liveRaw').textContent = `${uuid.slice(4, 8)}: ${h}`;
   if (!d) return;
   if (uuid === CHARS.treadmillData) {
