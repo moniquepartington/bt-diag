@@ -67,3 +67,22 @@ Everything under `site/` is published by the existing workflow. The app would li
 ## Build a3 (prepared after hardware check 1)
 
 Logging only, for the long run and the screen-lock tests: wake-lock status changes and the page being hidden or shown again are written to the activity log; readings are recorded per real packet (not one per second); the page hiding while a workout runs still faults it ("PAGE LEFT THE SCREEN"), verified in a browser. No change to safety logic.
+
+## Hardware check 2 (build a3, belt empty, full 20-minute "Night Walk", remote in hand): PASSED
+
+No faults, no lockouts, no refusals, no page-hidden events. The user confirmed every console checkpoint matched.
+
+| Item | Result |
+|---|---|
+| Interval boundaries | All seven within 0.1 to 0.3 s of the plan; workout clock ran 1200.1 s from "running" to the final stop. |
+| Speeds (km/h read, divided by 1.61) | 3.05 (1.9 mph), 3.38 (2.1), 3.54 (2.2), 3.22 (2.0), 3.05 (1.9), 2.89 (1.8). All as planned. |
+| Incline | Only commanded where it changed: 1 % confirmed 0.7 s after the command at interval 4, back to 0 % at interval 5. |
+| Commands | Every command acknowledged within 0.1 s, confirmed by readings 0.7 to 1.0 s later. Only changed values were sent (interval 2, 3, 6, 7: speed only). |
+| Readings | One packet about every 1 s through the run; largest gap about 1.5 s (3 s would fault). |
+| End | Stop sent at the end of the last interval; belt slowed 2.89 to 0 over 5.9 s (stop confirmed by status 0x2); workout COMPLETED; controller still connected with no lock. |
+| Wake lock | Acquired at Start, no "lost" event during the run, released at the end. |
+| Privacy | The report contains no device name, address or serial number. |
+
+**First Start attempt cancelled by a Stop tap (no motor command was sent).** At 91 s the user tapped Start: take control was sent and acknowledged, and during its 6 s watch window a harmless "stopped" status (02 01) arrived, then a tap on "Stop workout" ended the attempt (the report line "Stop: OK" only comes from that button). The belt never moved and no motion command was sent; the second attempt (take control already held) started normally 4.2 s after the Start command. Whether that Stop tap was deliberate is not known. If it was accidental, the Stop button sits too close to where Start was just tapped and the layout should be reviewed.
+
+Still not verified on hardware: locked or backgrounded phone, deliberate disconnect and recovery inside the app, walking out of range, speed or incline changed from the remote during a workout.
