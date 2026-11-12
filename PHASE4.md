@@ -25,7 +25,7 @@ A static, framework-free web app (plain HTML, CSS and JavaScript modules) for Bl
 
 ## Tests
 
-- **217 tests pass** across eleven files (`node --test test/<file>.test.mjs`): decoders 18, controller 46, engine 57, override 17, staged validation 18, confirmation 6, app logic 30 (formatting, editor operations incl. a 600-edit random test, library, view model, a real-engine run), Bluetooth session and wake lock 17, activity report 4, import-version hygiene 4.
+- **218 tests pass** across ten files (`node --test test/<file>.test.mjs`): decoders 18, controller 46, engine 57, override 17, staged validation 18, confirmation 6, app logic 30 (formatting, editor operations incl. a 600-edit random test, library, view model, a real-engine run), Bluetooth session and wake lock 17, activity report and packet log 5, import-version hygiene 4.
 - Mutation check: 10 deliberate breakages of the new layers (ignore limits, new workout claiming to be a preset, no upper speed clamp, no 5 s snapping, Start ignoring the checklist, lockout reset while the belt moves, ignoring a failed control-point subscription, stale listeners not ignored, override over the limit, override while not running) each made at least one test fail.
 - Real pages driven in a desktop browser against the simulator: create and save a workout through the editor, run it with the two-step Start, manual override, pause, resume (silent countdown, plan restored), completion; a disconnect mid-run (fault banner, navigation blocked, belt reported as possibly running, nothing sent); recovery (take control, stop); export, import with a refused item, two-step restore. Phone-width layout checked (no sideways scrolling).
 - Bugs found and fixed by the tests and browser runs: an override recorded when nothing was applied; the lockout reset being allowed while the belt moved; the `hidden` attribute being overridden by button styles (a duplicate Cancel and Resume showing); interval controls too wide for a phone.
@@ -51,7 +51,7 @@ No lockouts, no refusals, no faults, no telemetry gap over about 1.1 s. Observat
 
 **Correction.** I earlier described a "one missed reading (2.0 s gap) after each command write". In this report, and on reflection in the earlier ones, there is no such gap in the real data: the page's own once-a-second recording keeps one reading per whole second, and a reading taken at the moment a command is sent used up that second, so the next regular reading was dropped from the LOG. The controller's own gap logging (which watches the real packet times) never reported a gap over 2 s. The 3 s limit has never been in real danger since the dialog was removed.
 
-Not reported by the user: console readings, whether the ramp moved, and whether the screen stayed awake.
+Confirmed by the user afterwards: the console matched at every step, the incline ramp physically moved to 3 and back, **the screen stayed awake for the whole run** (so the wake lock works in Bluefy), and nothing felt off.
 
 ## Not verified on hardware (Phase 5)
 
@@ -63,3 +63,7 @@ Not reported by the user: console readings, whether the ramp moved, and whether 
 ## Deploying
 
 Everything under `site/` is published by the existing workflow. The app would live at `/app/`. The shared control and workout modules changed (3 s limit restored, override, accessor), so the control page becomes build c8 and the validation page v4 in the same deploy.
+
+## Build a3 (prepared after hardware check 1)
+
+Logging only, for the long run and the screen-lock tests: wake-lock status changes and the page being hidden or shown again are written to the activity log; readings are recorded per real packet (not one per second); the page hiding while a workout runs still faults it ("PAGE LEFT THE SCREEN"), verified in a browser. No change to safety logic.

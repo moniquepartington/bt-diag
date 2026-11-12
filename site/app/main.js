@@ -8,8 +8,7 @@ import { WorkoutLibrary } from './storage.js?v=a1';
 import { BleSession } from './session.js?v=a2';
 import { ScreenWake } from './wakelock.js?v=a1';
 import { isActive } from './workout-vm.js?v=a1';
-import { buildReport } from './report.js?v=a2';
-import { TelemetryLog } from '../validate/observe.js?v=v2';
+import { buildReport, PacketLog } from './report.js?v=a3';
 import { h, clear } from './dom.js?v=a1';
 import { safetyStrip } from './components.js?v=a1';
 import { dashboardView } from './views/dashboard.js?v=a1';
@@ -17,7 +16,7 @@ import { editorView } from './views/editor.js?v=a1';
 import { workoutView } from './views/workout.js?v=a1';
 import { settingsView } from './views/settings.js?v=a2';
 
-const BUILD = 'a2';
+const BUILD = 'a3';
 const view = document.getElementById('view');
 const clock = { now: () => performance.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id) };
 
@@ -34,9 +33,9 @@ session.attach(ctl);
 const engine = new WorkoutEngine({ controller: ctl, clock, limits, onChange: () => requestRender(), onEvent: log });
 const library = new WorkoutLibrary();
 library.load();
-const wake = new ScreenWake({ onChange: () => requestRender() });
-const telemetry = new TelemetryLog(3600); // one reading a second, for the copyable report
-ctl.subscribe((snap) => telemetry.add(clock.now(), snap.tele.speedKmh, snap.tele.inclinePct, snap.training));
+const wake = new ScreenWake({ onChange: (status) => { log(`Screen wake: ${status}`); requestRender(); } });
+const telemetry = new PacketLog(4000); // every real speed reading, for the copyable report
+ctl.subscribe((snap) => telemetry.add(snap.tele.at, snap.tele.speedKmh, snap.tele.inclinePct, snap.training));
 
 let current = null;
 let pending = false;
@@ -126,8 +125,8 @@ document.getElementById('shell').append(
 window.addEventListener('hashchange', route);
 // A page that leaves the screen may be suspended: timers and Bluetooth can pause. The controller locks out and the
 // engine faults rather than guessing what the belt did.
-document.addEventListener('visibilitychange', () => { if (document.hidden) ctl.pageHidden(); });
-window.addEventListener('pagehide', () => ctl.pageHidden());
+document.addEventListener('visibilitychange', () => { log(document.hidden ? 'Page hidden (screen locked or app switched).' : 'Page visible again.'); if (document.hidden) ctl.pageHidden(); });
+window.addEventListener('pagehide', () => { log('Page closing or hidden.'); ctl.pageHidden(); });
 setInterval(requestRender, 500);
 
 log(`App loaded (build ${BUILD}). Nothing has been sent to the treadmill.`);

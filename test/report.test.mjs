@@ -2,7 +2,7 @@
 // The copyable activity report: useful for diagnosing a hardware run, and free of identifiers.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReport } from '../site/app/report.js';
+import { buildReport, PacketLog } from '../site/app/report.js';
 
 const base = { build: 'a2', now: '2026-01-01T00:00:00Z', limits: { maxMph: 2.8, maxInclineLevel: 8 } };
 
@@ -45,4 +45,15 @@ test('REPORT PRIVACY: the report builder never takes or emits a device name, add
   const text = buildReport({ ...base, events: ['Connected.'], engine: { state: 'ready' }, controller: { link: true } });
   assert.doesNotMatch(text, /FS-|serial|address|[0-9A-F]{2}(:[0-9A-F]{2}){5}|uuid/i);
   assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['build', 'controller', 'engine', 'events', 'generatedAt', 'limits', 'screenWake', 'storagePersistent', 'telemetry']);
+});
+
+test('PACKET LOG: one row per real reading, even several in the same second; repeats and missing speed are ignored; capped', () => {
+  const log = new PacketLog(3);
+  assert.equal(log.add(1000, 0.96, 0, 13), true);
+  assert.equal(log.add(1000, 0.96, 0, 13), false, 'the same packet seen again (a state change, not a new reading)');
+  assert.equal(log.add(1400, 1.2, 0, 13), true, 'a second reading inside the same second is kept');
+  assert.equal(log.add(2500, null, 0, 13), false, 'no speed');
+  assert.equal(log.add(2600, 1.3, 2, 13), true);
+  assert.equal(log.add(3700, 1.4, 2, 13), false, 'cap reached');
+  assert.deepEqual(log.rows, [[1, 0.96, 0, 13], [1.4, 1.2, 0, 13], [2.6, 1.3, 2, 13]]);
 });
