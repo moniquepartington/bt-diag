@@ -8,7 +8,7 @@
 //    the expected result, unexpected motion, over-limit values, lost telemetry or connection) LOCKS OUT every command
 //    except Stop. Nothing is ever retried automatically. Only resetLock() (a manual user action) clears the lock.
 //  * Nothing is sent unless the user has ticked the safety boxes and fresh telemetry is flowing.
-import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c6';
+import { OP, RESULT_TEXT, LIMITS, capKmh, encodeRequestControl, encodeStart, encodeStop, encodeSetSpeedMph, encodeSetInclineLevel, parseIndication } from './protocol.js?v=c8';
 
 export const TIMING = Object.freeze({
   ackMs: 3000, // no indication within this long = failure
@@ -17,8 +17,7 @@ export const TIMING = Object.freeze({
   speedConfirmMs: 8000,
   inclineConfirmMs: 10000,
   stopConfirmMs: 15000,
-  staleMs: 3000, // while the belt is running or a command is pending, readings older than this are "lost"
-  idleStaleMs: 6000, // while the belt is idle the treadmill pauses its readings for up to 3.3 s (seen on hardware)
+  staleMs: 3000, // readings older than this are "lost" (one missed reading after a write is 2.0 s, seen on hardware)
   watchdogMs: 1000,
 });
 
@@ -266,16 +265,14 @@ export class Controller {
     this._emit();
   }
 
+  /** True while a command is outstanding (sent, not yet resolved). */
+  hasPending() { return this.pending != null; }
+
   /** True if a speed reading arrived recently enough to trust the belt state. */
   isFresh() { return this._fresh(); }
 
   // ---------- internals ----------
-  _fresh() {
-    if (this.tele.speedKmh == null) return false;
-    // Strict (3 s) whenever the belt is, or may be, moving; relaxed (6 s) only when it is idle and nothing is pending.
-    const idle = !this.pending && this.expect === 'stopped' && !this._beltActive();
-    return this.clock.now() - this.tele.at <= (idle ? this.timing.idleStaleMs : this.timing.staleMs);
-  }
+  _fresh() { return this.tele.speedKmh != null && this.clock.now() - this.tele.at <= this.timing.staleMs; }
 
   _isStopped() {
     return (this.tele.speedKmh ?? Infinity) <= STOPPED_KMH && (this.training === TRAINING.IDLE || this.training === TRAINING.POST);

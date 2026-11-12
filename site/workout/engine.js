@@ -59,6 +59,8 @@ export class WorkoutEngine {
     this.countdownEndsAt = null;
     this.events = [];
     this.stopPromise = null;
+    this.override = null; // manual speed/incline change, valid until the next interval starts
+    this.adjusting = false;
     controller.subscribe((snap) => this._onController(snap));
   }
 
@@ -80,7 +82,7 @@ export class WorkoutEngine {
     this.workout = structuredClone(workout);
     let t = 0;
     this.cum = this.workout.intervals.map((i) => (t += i.durationSec * 1000));
-    Object.assign(this, { acc: 0, segStart: null, idx: -1, desired: null, fault: null, notice: null, countdownEndsAt: null, stopPromise: null });
+    Object.assign(this, { acc: 0, segStart: null, idx: -1, desired: null, fault: null, notice: null, countdownEndsAt: null, stopPromise: null, override: null });
     this.state = STATE.READY;
     this._log(`Loaded "${workout.name}" (${totalSeconds(workout)} s).`);
     this._emit();
@@ -176,6 +178,62 @@ export class WorkoutEngine {
     return { ok: true };
   }
 
+  /**
+   * Manual override: nudge speed (0.1 mph steps) and/or incline (levels) for the rest of the CURRENT interval.
+   * The next interval, a pause or a fault drops it, and the plan takes over again. Same serial queue and limits as
+   * everything else. A request that would break a limit, or that arrives while another change is in progress, is
+   * REFUSED (nothing sent, no fault); only a real command failure faults the workout.
+   */
+  async adjust({ speedDeltaMph = 0, inclineDelta = 0 } = {}) {
+    if (this.state !== STATE.RUNNING) return this._refuse(`cannot adjust from "${this.state}"`);
+    if (this.pumping || this.adjusting || this.desired || this.ctl.hasPending()) return this._refuse('a change is already in progress');
+    if (!Number.isInteger(inclineDelta) || Math.abs(Math.round(speedDeltaMph * 10) - speedDeltaMph * 10) > 1e-6) return this._refuse('speed changes are in 0.1 mph steps and incline in whole levels');
+    const base = this.override ?? this._target(this.idx);
+    const speedMph = (Math.round(base.speedMph * 10) + Math.round(speedDeltaMph * 10)) / 10;
+    const inclineLevel = base.inclineLevel + inclineDelta;
+    const minMph = Math.round((this.ctl.ranges?.speed?.minKmh ?? 0) * MPH_PER_KMH * 10) / 10;
+    if (speedMph < minMph - 1e-9) return this._refuse('already at the minimum speed');
+    if (speedMph > this.limits.maxMph + 1e-9) return this._refuse('already at the speed limit');
+    if (inclineLevel < 0) return this._refuse('incline is already 0');
+    if (inclineLevel > this.limits.maxInclineLevel) return this._refuse('already at the incline limit');
+    if (speedMph === base.speedMph && inclineLevel === base.inclineLevel) return this._refuse('nothing to change');
+    const e = this.epoch;
+    const idx0 = this.idx;
+    this.adjusting = true;
+    this._emit();
+    let applied = { ...base };
+    let changed = false; // did at least one command actually go through?
+    try {
+      const steps = [];
+      if (speedMph !== base.speedMph) steps.push([() => this.ctl.setSpeedMph(speedMph), { speedMph }]);
+      if (inclineLevel !== base.inclineLevel) steps.push([() => this.ctl.setInclineLevel(inclineLevel), { inclineLevel }]);
+      for (const [step, change] of steps) {
+        const r = await this._call(e, step);
+        if (r.cancelled || e !== this.epoch) return CANCELLED;
+        if (!r.ok) {
+          if (r.sent === false) { // nothing was sent: keep whatever was already applied, no fault
+            if (changed && idx0 === this.idx) this.override = { ...applied };
+            return { ok: false, reason: r.reason, sent: false };
+          }
+          return this._fault('MANUAL ADJUSTMENT FAILED', `${r.reason ?? 'command failed'}. Not retrying.`, 'running');
+        }
+        applied = { ...applied, ...change };
+        changed = true;
+      }
+    } finally {
+      this.adjusting = false;
+    }
+    if (idx0 !== this.idx) { // the next interval started while we were adjusting: the plan wins
+      this._log('Manual override superseded: the next interval started.');
+      this._emit();
+      return { ok: true, superseded: true };
+    }
+    this.override = { speedMph: applied.speedMph, inclineLevel: applied.inclineLevel };
+    this._log(`Manual override: ${this.override.speedMph} mph, incline ${this.override.inclineLevel} (until the next interval).`);
+    this._emit();
+    return { ok: true, override: { ...this.override } };
+  }
+
   /** Stop: ends the workout. After this the workout cannot be resumed. Idempotent. */
   stop() {
     if (this.state === STATE.STOPPED || this.state === STATE.COMPLETED) return Promise.resolve({ ok: true, already: true });
@@ -240,7 +298,7 @@ export class WorkoutEngine {
   // ---------- internals: clock and intervals ----------
   _elapsedMs() { return this.acc + (this.segStart == null ? 0 : this.clock.now() - this.segStart); }
   _startClock() { this.segStart = this.clock.now(); this.lastTickAt = this.segStart; this._schedule(); }
-  _freezeClock() { this.acc = this._elapsedMs(); this.segStart = null; this._stopTicking(); }
+  _freezeClock() { this.acc = this._elapsedMs(); this.segStart = null; this._stopTicking(); this.override = null; }
   _schedule() { this._stopTicking(); this.tickHandle = this.clock.setTimeout(() => this._tick(), this.cfg.tickMs); }
   _stopTicking() { if (this.tickHandle != null) this.clock.clearTimeout(this.tickHandle); this.tickHandle = null; }
   _target(i) { const iv = this.workout.intervals[i]; return { speedMph: iv.speedMph, inclineLevel: iv.inclineLevel }; }
@@ -262,6 +320,7 @@ export class WorkoutEngine {
     if (idx !== this.idx) {
       if (idx - this.idx > 1) this._log(`Boundaries missed (late timer): skipped intervals ${this.idx + 2} to ${idx}; only interval ${idx + 1} will be applied.`);
       this.idx = idx;
+      if (this.override) { this._log('Manual override ended: the next interval started.'); this.override = null; }
       this.desired = { ...this._target(idx) }; // latest wins: earlier targets are dropped, never replayed
       this._log(`Interval ${idx + 1}: ${this.desired.speedMph} mph, incline ${this.desired.inclineLevel}.`);
       void this._pump();
@@ -421,6 +480,8 @@ export class WorkoutEngine {
       state: this.state, name: this.workout?.name ?? null, elapsedMs: el, totalMs: total, remainingMs: total - el,
       intervalIndex: i, interval: i == null ? null : this.workout.intervals[i], next: i == null ? null : this.workout.intervals[i + 1] ?? null,
       beltKnown: this.beltKnown, countdownEndsAt: this.countdownEndsAt, fault: this.fault, notice: this.notice,
+      override: this.override ? { ...this.override } : null,
+      busy: this.pumping || this.adjusting || !!this.desired || !!this.ctl.hasPending(),
     };
   }
 }

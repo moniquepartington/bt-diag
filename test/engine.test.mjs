@@ -723,6 +723,6 @@ test('GUARD: the engine only uses the controller\'s public, verified commands an
   const src = readFileSync(new URL('../site/workout/engine.js', import.meta.url), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(src, /writeValue|encode\w*\(|_issue|transport|navigator/);
   const used = new Set([...src.matchAll(/this\.ctl\.(\w+)/g)].map((m) => m[1]));
-  const allowed = new Set(['takeControl', 'start', 'stop', 'setSpeedMph', 'setInclineLevel', 'canSend', 'snapshot', 'subscribe', 'limits', 'ranges', 'hasControl', 'isFresh']);
+  const allowed = new Set(['takeControl', 'start', 'stop', 'setSpeedMph', 'setInclineLevel', 'canSend', 'snapshot', 'subscribe', 'limits', 'ranges', 'hasControl', 'isFresh', 'hasPending']);
   for (const name of used) assert.ok(allowed.has(name), `engine uses ctl.${name}`);
 });

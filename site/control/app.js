@@ -1,12 +1,12 @@
 // Phase 2 control-test page: Web Bluetooth plumbing and UI only. Every decision about whether a command may be
 // sent lives in controller.js, and every byte is built by protocol.js.
-import { Controller } from './controller.js?v=c6';
-import { routeNotification } from './bridge.js?v=c6';
-import { wireTwoStep } from './confirm.js?v=c7';
-import { LIMITS, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c6';
+import { Controller } from './controller.js?v=c8';
+import { routeNotification } from './bridge.js?v=c8';
+import { wireTwoStep } from './confirm.js?v=c8';
+import { LIMITS, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from './protocol.js?v=c8';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
 
-const BUILD = 'c7';
+const BUILD = 'c8';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const SPEEDS_MPH = [0.6, 0.7, 0.8, 0.9, 1.0];

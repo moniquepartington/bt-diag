@@ -119,29 +119,26 @@ test('a pause in telemetry is logged, and a refusal says how old the last readin
   assert.ok(rig3.logs.some((l) => /Telemetry gap: no speed reading for 3\.5 s/.test(l)));
 });
 
-test('FRESHNESS: idle readings may be up to 6 s old (the treadmill pauses them for 3.3 s at idle), but not older', async () => {
-  const rig = makeRig();
-  rig.sim.halt();
-  rig.clock.advance(3500); // the gap seen on hardware: 3.3 s
-  assert.equal(rig.ctl.isFresh(), true);
-  assert.equal(rig.ctl.canSend('takeControl').ok, true, 'a Start/Take control is no longer refused for a 3.3 s idle gap');
-  rig.clock.advance(2000); // 5.5 s since the last reading: still within 6 s
-  assert.equal(rig.ctl.isFresh(), true);
-  rig.clock.advance(1500); // 7 s
-  assert.equal(rig.ctl.isFresh(), false);
-  assert.match(rig.ctl.canSend('takeControl').why, /last reading [\d.]+ s ago/);
-});
+test('FRESHNESS: readings older than 3 s are stale whether the belt is idle, running, or a command is pending', async () => {
+  const idle = makeRig();
+  idle.sim.halt();
+  idle.clock.advance(2500);
+  assert.equal(idle.ctl.isFresh(), true, 'the usual 2.0 s gap after a write is tolerated');
+  assert.equal(idle.ctl.canSend('takeControl').ok, true);
+  idle.clock.advance(1000); // 3.5 s
+  assert.equal(idle.ctl.isFresh(), false, 'idle: strict 3 s (the 6 s idle relaxation was removed once the dialog was fixed)');
+  assert.match(idle.ctl.canSend('takeControl').why, /last reading [\d.]+ s ago/);
 
-test('FRESHNESS: whenever the belt is running or a command is pending the strict 3 s limit still applies', async () => {
   const running = makeRig();
   await toRunning(running);
   running.sim.halt();
   running.clock.advance(1100);
   assert.equal(running.ctl.isFresh(), true);
-  running.clock.advance(2400); // 3.5 s without a reading while running
+  running.clock.advance(2400);
   assert.equal(running.ctl.isFresh(), false, 'running: strict');
   running.clock.advance(1500); // the watchdog checks once a second
   assert.match(running.ctl.lock?.reason ?? '', /TELEMETRY LOST/, 'and the watchdog locks out');
+
   const pending = makeRig({ ackDelayMs: 2500 });
   const p = pending.ctl.takeControl();
   await flush();
@@ -151,7 +148,7 @@ test('FRESHNESS: whenever the belt is running or a command is pending the strict
   await settle(pending, p); // the watchdog ends the command (readings lost while it was pending)
 });
 
-test('FRESHNESS: a belt that is moving when we did not start it is judged by the strict limit too', async () => {
+test('FRESHNESS: a belt that is moving when we did not start it is judged by the same limit', async () => {
   const rig = makeRig({}, { beltRunning: true });
   rig.sim.halt();
   rig.clock.advance(3500);
