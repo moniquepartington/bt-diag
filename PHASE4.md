@@ -34,6 +34,25 @@ A static, framework-free web app (plain HTML, CSS and JavaScript modules) for Bl
 
 Settings has a "Copy activity report" button: the app log, once-a-second readings, engine and controller state. No device name, address or serial number (a test checks this, and caught one slip where the Bluetooth session logged the device name).
 
+## Hardware check 1 (build a2, belt empty, one-minute "Check run", imported through Settings): PASSED
+
+No lockouts, no refusals, no faults, no telemetry gap over about 1.1 s. Observations from the activity report:
+
+| Step | Result |
+|---|---|
+| Import, open workout, connect, two-step Start | Worked. Start to running (take control, start, speed 1.0 mph) took 10.2 s from the second tap. |
+| Manual override | Speed + three times: 1.1, 1.2, 1.3 mph read as 1.77, 1.93, 2.09 km/h; each acknowledged in 0.1 s, confirmed in 0.7 to 1.0 s. The override ended exactly at the interval boundary and the plan (2.0 mph, incline 3) took over. |
+| Boundaries | Intervals changed within 0.1 to 0.25 s of schedule (20.2, 20.0 s). Each change is speed first, then incline, about 1 s apart. |
+| Pause | Clock frozen at the tap (37.8 s into the workout). Belt stopped, confirmed 7.2 s later from 2.0 mph; incline returned to 0. |
+| Resume | Silent 3 s countdown, then start; running at the minimum after another 3.4 s; speed 2.0 mph and incline 3 restored; resumed 8.5 s after the tap. The remaining 2.2 s of the interval ran, then interval 3. |
+| Clock accuracy | 60.0 s of workout time across a 30.3 s pause: workout ended at the expected moment (observed 193.6 s, expected 193.4 s). |
+| End | Final stop confirmed 3.5 s later from 1.0 mph. Workout COMPLETED. |
+| Wake lock | The report shows the wake-lock status as "idle" at the end, which is what happens after it was granted and released at the end of the workout (a refusal would read "denied", an unsupported browser "unsupported"). Not proven by the log; the next build logs wake events. |
+
+**Correction.** I earlier described a "one missed reading (2.0 s gap) after each command write". In this report, and on reflection in the earlier ones, there is no such gap in the real data: the page's own once-a-second recording keeps one reading per whole second, and a reading taken at the moment a command is sent used up that second, so the next regular reading was dropped from the LOG. The controller's own gap logging (which watches the real packet times) never reported a gap over 2 s. The 3 s limit has never been in real danger since the dialog was removed.
+
+Not reported by the user: console readings, whether the ramp moved, and whether the screen stayed awake.
+
 ## Not verified on hardware (Phase 5)
 
 - The app as a whole on the real phone and treadmill, including Bluefy's wake lock support and what a locked or backgrounded screen does.
