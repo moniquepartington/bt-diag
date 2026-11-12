@@ -5,17 +5,19 @@ import { Controller } from '../control/controller.js?v=c8';
 import { WorkoutEngine, STATE } from '../workout/engine.js?v=v4';
 import { VERIFIED_LIMITS } from '../workout/limits.js?v=l2';
 import { WorkoutLibrary } from './storage.js?v=a1';
-import { BleSession } from './session.js?v=a1';
+import { BleSession } from './session.js?v=a2';
 import { ScreenWake } from './wakelock.js?v=a1';
 import { isActive } from './workout-vm.js?v=a1';
+import { buildReport } from './report.js?v=a2';
+import { TelemetryLog } from '../validate/observe.js?v=v2';
 import { h, clear } from './dom.js?v=a1';
 import { safetyStrip } from './components.js?v=a1';
 import { dashboardView } from './views/dashboard.js?v=a1';
 import { editorView } from './views/editor.js?v=a1';
 import { workoutView } from './views/workout.js?v=a1';
-import { settingsView } from './views/settings.js?v=a1';
+import { settingsView } from './views/settings.js?v=a2';
 
-const BUILD = 'a1';
+const BUILD = 'a2';
 const view = document.getElementById('view');
 const clock = { now: () => performance.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id) };
 
@@ -33,6 +35,8 @@ const engine = new WorkoutEngine({ controller: ctl, clock, limits, onChange: () 
 const library = new WorkoutLibrary();
 library.load();
 const wake = new ScreenWake({ onChange: () => requestRender() });
+const telemetry = new TelemetryLog(3600); // one reading a second, for the copyable report
+ctl.subscribe((snap) => telemetry.add(clock.now(), snap.tele.speedKmh, snap.tele.inclinePct, snap.training));
 
 let current = null;
 let pending = false;
@@ -48,6 +52,7 @@ function requestRender() {
 
 const ctx = {
   clock, limits, library, session, ctl, engine, wake, events,
+  buildReport: () => buildReport({ build: BUILD, events, telemetry: telemetry.rows, engine: engine.snapshot(), controller: ctl.snapshot(), limits, storagePersistent: library.persistent, wake: wake.status }),
   state: { checklist: [false, false, false], connecting: false, connectMessage: '', notices: [], runId: null, adjustMsg: '', faultMsg: '' },
   checklistOk: () => ctx.state.checklist.every(Boolean),
   go: (path) => { if (location.hash === path) route(); else location.hash = path; },

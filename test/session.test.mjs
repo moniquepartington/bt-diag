@@ -40,6 +40,18 @@ test('SESSION: connecting reads the limits, subscribes to all four notification 
   assert.equal(s.fake.writes.length, 0, 'connecting writes nothing to the treadmill');
 });
 
+test('SESSION PRIVACY: nothing in the session log (which goes into copied reports) contains the device name', async () => {
+  const s = setup();
+  await s.session.connect();
+  s.fake.device.gatt.disconnect();
+  const text = s.logs.join(' | ');
+  assert.ok(text.length > 0);
+  assert.doesNotMatch(text, /FS-FAKE|FS-/);
+  const bad = setup({ failCpNotify: true });
+  await bad.session.connect();
+  assert.doesNotMatch(bad.logs.join(' | '), /FS-/);
+});
+
 test('SESSION: Bluefy-style short IDs and full IDs both route notifications into the controller', async () => {
   for (const shortUuids of [true, false]) {
     const s = setup({ shortUuids });

@@ -25,10 +25,14 @@ A static, framework-free web app (plain HTML, CSS and JavaScript modules) for Bl
 
 ## Tests
 
-- **212 tests pass** across nine files (`node --test test/<file>.test.mjs`): decoders 18, controller 46, engine 57, override 17, staged validation 18, confirmation 6, app logic 30 (formatting, editor operations incl. a 600-edit random test, library, view model, a real-engine run), Bluetooth session and wake lock 16, import-version hygiene 4.
+- **217 tests pass** across eleven files (`node --test test/<file>.test.mjs`): decoders 18, controller 46, engine 57, override 17, staged validation 18, confirmation 6, app logic 30 (formatting, editor operations incl. a 600-edit random test, library, view model, a real-engine run), Bluetooth session and wake lock 17, activity report 4, import-version hygiene 4.
 - Mutation check: 10 deliberate breakages of the new layers (ignore limits, new workout claiming to be a preset, no upper speed clamp, no 5 s snapping, Start ignoring the checklist, lockout reset while the belt moves, ignoring a failed control-point subscription, stale listeners not ignored, override over the limit, override while not running) each made at least one test fail.
 - Real pages driven in a desktop browser against the simulator: create and save a workout through the editor, run it with the two-step Start, manual override, pause, resume (silent countdown, plan restored), completion; a disconnect mid-run (fault banner, navigation blocked, belt reported as possibly running, nothing sent); recovery (take control, stop); export, import with a refused item, two-step restore. Phone-width layout checked (no sideways scrolling).
 - Bugs found and fixed by the tests and browser runs: an override recorded when nothing was applied; the lockout reset being allowed while the belt moved; the `hidden` attribute being overridden by button styles (a duplicate Cancel and Resume showing); interval controls too wide for a phone.
+
+## Activity report (build a2)
+
+Settings has a "Copy activity report" button: the app log, once-a-second readings, engine and controller state. No device name, address or serial number (a test checks this, and caught one slip where the Bluetooth session logged the device name).
 
 ## Not verified on hardware (Phase 5)
 

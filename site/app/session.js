@@ -70,7 +70,7 @@ export class BleSession {
       const t = parseTrainingStatus(await training.readValue());
       if (t.code != null) ctl.feedTraining(t.code);
       this.deviceName = this.device.name ?? 'treadmill';
-      this.onLog(`Connected to ${this.deviceName}.`);
+      this.onLog('Connected to the treadmill.'); // the device name stays out of the log, so copied reports carry no identifiers
       return { ok: true, name: this.deviceName };
     } catch (e) {
       const reason = e?.message || 'The device chooser was cancelled, or the browser gave no details.';
