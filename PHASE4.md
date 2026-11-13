@@ -140,3 +140,13 @@ Not tested: a longer lock (tens of seconds or minutes) while running; whether th
 | Hand-close | Fault and lockout closed on the user's word, nothing sent. |
 
 Extra evidence from the saved earlier-load log (no workout running at the time, so not a test of a running belt): the Bluetooth link survived two long locks of the phone (about 75 s and about 83 s). Readings paused for 76 s and 85 s and resumed on unlock without a reconnect. A lock while a workout is running always faults the run immediately, whatever the link does afterwards.
+
+## Hardware check 7 (build a4, belt empty, "Remote test": speed, incline and Stop pressed on the treadmill's own remote): reported as expected
+
+Reported by the user as matching every "Expected" line in the test sheet; **no activity report was pasted, so the details below are the expectations, not checked against a log**:
+
+- Remote speed increase within the limit: no fault in the app (it cannot see it); the app's next interval command (1.2 mph) brought the speed back to plan.
+- Remote incline increase: no fault; incline stayed up (the plan's incline never changed, so no incline command was sent).
+- Remote Stop key during the run: the app paused the workout ("The belt was stopped from the remote or key"), clock frozen, resumable with a tap.
+
+Open question left by this: the app still cannot see remote speed or incline changes while a workout runs (it only corrects them when the plan next changes that value).
