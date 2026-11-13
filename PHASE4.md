@@ -130,3 +130,13 @@ Two runs in the saved log (one in `previousSessions`, one current). Both behaved
 | Wake lock | Lost when the page was hidden, as expected. |
 
 Not tested: a longer lock (tens of seconds or minutes) while running; whether the Bluetooth link survives that. The earlier long hidden periods in the log were with no workout running.
+
+## Hardware check 6 (build a4, belt empty, "Slow test" 0.6 mph, walking out of Bluetooth range): PASSED
+
+| Item | Result |
+|---|---|
+| Link loss | Detected at 163.7 s, 0.8 s after the last reading (162.9 s), 117 s into the run. The run faulted at once: CONNECTION LOST, lockout, nothing sent afterwards; the workout clock froze at 117.0 s. |
+| Belt | Kept running at 0.6 mph. It did not stop when the workout's 3 minutes passed, because the app (correctly) sent nothing after the fault. It was stopped by hand. |
+| Hand-close | Fault and lockout closed on the user's word, nothing sent. |
+
+Extra evidence from the saved earlier-load log (no workout running at the time, so not a test of a running belt): the Bluetooth link survived two long locks of the phone (about 75 s and about 83 s). Readings paused for 76 s and 85 s and resumed on unlock without a reconnect. A lock while a workout is running always faults the run immediately, whatever the link does afterwards.
