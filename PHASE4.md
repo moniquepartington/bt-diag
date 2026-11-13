@@ -115,3 +115,18 @@ Reported by the user (the activity report was lost, see below):
 | Wake lock | Released at the moment of the fault, so the screen may sleep during a fault (not a safety issue; the remote is the real stop). |
 
 Not yet checked on hardware: that the saved log survives a page reload (this run had no reload, so `previousSessions` was empty). Checked in the simulator and desktop browser only.
+
+## Hardware check 5 (build a4, belt empty, "Slow test" 0.6 mph, phone locked with the side button): PASSED
+
+Two runs in the saved log (one in `previousSessions`, one current). Both behaved the same.
+
+| Item | Result |
+|---|---|
+| Lock | The page-hidden event faulted the run at the instant of locking (lockout PAGE LEFT THE SCREEN, 0.0 s after "Page hidden"). Nothing was sent afterwards. |
+| Belt | Kept running at 0.96 km/h (0.6 mph) throughout. |
+| Bluetooth link | Survived a lock of about 5 to 6 s: the app was still connected on unlock. Speed readings paused while locked (gaps of 6.0 s and 7.0 s) and resumed after unlock, so the app is blind to the belt while the phone is locked. The "telemetry lost" watchdog fired after unlock but only added to the existing lockout. |
+| Recovery in the app (first run) | Stop belt (no new Take control needed; control was still held): stop confirmed 2.6 s later. Then close fault (accepted once the belt was confirmed stopped) and reset lockout. |
+| Refusal (second run) | "Close this fault" tapped while the belt was still moving was refused ("the belt is not confirmed stopped"), as designed. The last reading in that report (105.5 s) still shows the belt moving; the user stopped it afterwards. |
+| Wake lock | Lost when the page was hidden, as expected. |
+
+Not tested: a longer lock (tens of seconds or minutes) while running; whether the Bluetooth link survives that. The earlier long hidden periods in the log were with no workout running.
