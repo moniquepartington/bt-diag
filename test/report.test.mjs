@@ -44,7 +44,7 @@ test('REPORT: only the last 400 events are kept, and an empty report still works
 test('REPORT PRIVACY: the report builder never takes or emits a device name, address or serial number', () => {
   const text = buildReport({ ...base, events: ['Connected.'], engine: { state: 'ready' }, controller: { link: true } });
   assert.doesNotMatch(text, /FS-|serial|address|[0-9A-F]{2}(:[0-9A-F]{2}){5}|uuid/i);
-  assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['build', 'controller', 'engine', 'events', 'generatedAt', 'limits', 'screenWake', 'storagePersistent', 'telemetry']);
+  assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['build', 'controller', 'engine', 'events', 'generatedAt', 'limits', 'previousSessions', 'screenWake', 'storagePersistent', 'telemetry']);
 });
 
 test('PACKET LOG: one row per real reading, even several in the same second; repeats and missing speed are ignored; capped', () => {

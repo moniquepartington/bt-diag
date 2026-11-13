@@ -1,7 +1,7 @@
 // Workout editor: name, description and an ordered list of intervals, with live total duration and validation
 // against the verified hardware limits. Nothing here can create a workout the engine would refuse.
 import { h, clear, setText } from '../dom.js?v=a1';
-import { twoStep } from '../components.js?v=a1';
+import { twoStep } from '../components.js?v=a4';
 import { formatDuration } from '../format.js?v=a1';
 import * as ed from '../editor-model.js?v=a1';
 

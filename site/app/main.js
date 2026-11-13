@@ -2,28 +2,33 @@
 // between the four screens, and refreshes the visible screen when anything changes. Every decision about whether
 // a command may be sent lives in the Controller and the workout engine, not here.
 import { Controller } from '../control/controller.js?v=c8';
-import { WorkoutEngine, STATE } from '../workout/engine.js?v=v4';
+import { WorkoutEngine, STATE } from '../workout/engine.js?v=v5';
 import { VERIFIED_LIMITS } from '../workout/limits.js?v=l2';
 import { WorkoutLibrary } from './storage.js?v=a1';
 import { BleSession } from './session.js?v=a2';
 import { ScreenWake } from './wakelock.js?v=a1';
-import { isActive } from './workout-vm.js?v=a1';
-import { buildReport, PacketLog } from './report.js?v=a3';
+import { isActive } from './workout-vm.js?v=a4';
+import { buildReport, PacketLog } from './report.js?v=a4';
+import { LogStore } from './logstore.js?v=a4';
 import { h, clear } from './dom.js?v=a1';
-import { safetyStrip } from './components.js?v=a1';
+import { safetyStrip } from './components.js?v=a4';
 import { dashboardView } from './views/dashboard.js?v=a1';
 import { editorView } from './views/editor.js?v=a1';
-import { workoutView } from './views/workout.js?v=a1';
-import { settingsView } from './views/settings.js?v=a2';
+import { workoutView } from './views/workout.js?v=a4';
+import { settingsView } from './views/settings.js?v=a4';
 
-const BUILD = 'a3';
+const BUILD = 'a4';
 const view = document.getElementById('view');
 const clock = { now: () => performance.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id) };
 
+// The log is also saved on the phone, so reloading the page does not erase the record of a run that went wrong.
+const logStore = new LogStore();
+let telemetry = null; // assigned below; the log is saved with the readings as they stand
 const events = [];
 function log(line) {
   events.push(`${new Date().toLocaleTimeString()}  ${line}`);
   if (events.length > 400) events.shift();
+  logStore.save(events, telemetry?.rows ?? []);
 }
 
 const limits = VERIFIED_LIMITS;
@@ -34,8 +39,10 @@ const engine = new WorkoutEngine({ controller: ctl, clock, limits, onChange: () 
 const library = new WorkoutLibrary();
 library.load();
 const wake = new ScreenWake({ onChange: (status) => { log(`Screen wake: ${status}`); requestRender(); } });
-const telemetry = new PacketLog(4000); // every real speed reading, for the copyable report
+telemetry = new PacketLog(4000); // every real speed reading, for the copyable report
 ctl.subscribe((snap) => telemetry.add(snap.tele.at, snap.tele.speedKmh, snap.tele.inclinePct, snap.training));
+let savedRows = 0;
+setInterval(() => { if (telemetry.rows.length !== savedRows) { savedRows = telemetry.rows.length; logStore.save(events, telemetry.rows); } }, 10000);
 
 let current = null;
 let pending = false;
@@ -50,8 +57,8 @@ function requestRender() {
 }
 
 const ctx = {
-  clock, limits, library, session, ctl, engine, wake, events,
-  buildReport: () => buildReport({ build: BUILD, events, telemetry: telemetry.rows, engine: engine.snapshot(), controller: ctl.snapshot(), limits, storagePersistent: library.persistent, wake: wake.status }),
+  clock, limits, library, session, ctl, engine, wake, events, log,
+  buildReport: () => buildReport({ build: BUILD, events, telemetry: telemetry.rows, engine: engine.snapshot(), controller: ctl.snapshot(), limits, storagePersistent: library.persistent, wake: wake.status, previous: logStore.previous }),
   state: { checklist: [false, false, false], connecting: false, connectMessage: '', notices: [], runId: null, adjustMsg: '', faultMsg: '' },
   checklistOk: () => ctx.state.checklist.every(Boolean),
   go: (path) => { if (location.hash === path) route(); else location.hash = path; },

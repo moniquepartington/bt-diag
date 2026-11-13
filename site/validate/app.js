@@ -6,11 +6,11 @@ import { routeNotification } from '../control/bridge.js?v=c8';
 import { wireTwoStep } from '../control/confirm.js?v=c8';
 import { MPH_TO_KMH, kmhToMph, encodeSetSpeedMph, encodeSetInclineLevel } from '../control/protocol.js?v=c8';
 import { SERVICES, CHARS, parseSpeedRange, parseInclineRange, parseTrainingStatus } from '../ftms.js?v=b6';
-import { WorkoutEngine, STATE } from '../workout/engine.js?v=v4';
+import { WorkoutEngine, STATE } from '../workout/engine.js?v=v5';
 import { STAGES, ENABLED_STAGES, unlockStage, unlockPhrase } from './stages.js?v=v2';
 import { restartVerdict, TelemetryLog } from './observe.js?v=v2';
 
-const BUILD = 'v4';
+const BUILD = 'v5';
 const $ = (id) => document.getElementById(id);
 const CONNECT_TIMEOUT_MS = 20000;
 const TRAINING_NAMES = { 0x01: 'Idle', 0x0d: 'Running', 0x0e: 'Countdown', 0x0f: 'Finished' };

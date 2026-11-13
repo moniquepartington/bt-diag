@@ -1,7 +1,7 @@
 // Turns the engine and controller snapshots into exactly what the workout screen shows: clocks, progress, the banner,
 // and which buttons are enabled (with the reason when one is not). Pure functions, so the safety-relevant UI decisions
 // are tested without a browser.
-import { STATE } from '../workout/engine.js?v=v4';
+import { STATE } from '../workout/engine.js?v=v5';
 import { formatCountdown, formatElapsed, describeInterval, mphText } from './format.js?v=a1';
 
 export const SAFETY_REMINDER = 'Keep the treadmill\'s remote or safety key within reach. The on-screen Stop is not an emergency stop.';
@@ -53,6 +53,12 @@ export function runView(eng, ctl, { checklistOk = false, nowMs = 0 } = {}) {
     : beltActive ? no('the belt is still moving: stop it first')
     : yes();
 
+  // With no connection the belt cannot be checked, so the user may close the fault and the lockout on their own word
+  // that they stopped the belt by hand. With a connection, only the normal readings-based checks apply.
+  const closeByHand = ctl.link ? no('connected: use the other buttons, which check the belt from its readings')
+    : (st === STATE.FAULTED || ctl.lock) ? yes()
+    : no('nothing to close');
+
   const banner = bannerFor(eng, ctl, nowMs);
   return {
     state: st,
@@ -73,13 +79,26 @@ export function runView(eng, ctl, { checklistOk = false, nowMs = 0 } = {}) {
       pause: running ? yes() : no('not running'),
       stop: [STATE.STARTING, STATE.RUNNING, STATE.PAUSING, STATE.PAUSED, STATE.RESUMING, STATE.FAULTED].includes(st) ? yes() : no('nothing to stop'),
       acknowledgeFault: st === STATE.FAULTED ? yes() : no('no fault'),
-      resetLock,
+      resetLock, closeByHand,
       speedUp: adjust, speedDown: adjust, inclineUp: adjust, inclineDown: adjust,
       takeControl: ctl.recovery ? (ctl.buttons.takeControl.ok ? yes() : no(ctl.buttons.takeControl.why)) : no('only needed after a problem with the belt moving'),
       recoveryStop: ctl.recovery ? (ctl.buttons.stop.ok ? yes() : no(ctl.buttons.stop.why)) : no('only needed after a problem with the belt moving'),
     },
     recovery: !!ctl.recovery,
   };
+}
+
+/**
+ * The user says they stopped the belt by hand while there is no connection: close the workout fault and the lockout.
+ * Sends nothing. Refused while connected. Returns { ok, reason? }.
+ */
+export function closeFaultByHand(engine, ctl) {
+  if (ctl.snapshot().link) return { ok: false, reason: 'the treadmill is connected: use the normal buttons' };
+  if (engine.state === STATE.FAULTED) {
+    const e = engine.acknowledgeFaultByUser();
+    if (!e.ok) return e;
+  }
+  return ctl.resetLock();
 }
 
 function bannerFor(eng, ctl, nowMs) {

@@ -1,6 +1,6 @@
 // Settings: device details, what has actually been verified on the treadmill, diagnostics, and your data.
 import { h, setText, clear } from '../dom.js?v=a1';
-import { connectionCard, twoStep } from '../components.js?v=a1';
+import { connectionCard, twoStep, reportCard } from '../components.js?v=a4';
 import { kmhToMph } from '../../control/protocol.js?v=c8';
 
 // Only things that were observed on the real treadmill, plus a plain list of what has NOT been tested.
@@ -25,8 +25,7 @@ export function settingsView(ctx, build) {
   const importBox = h('textarea', { placeholder: 'Paste exported workouts here, or choose a file.', 'aria-label': 'Import' });
   const dataMsg = h('div', { class: 'why' });
   const logEl = h('div', { class: 'log' });
-  const reportBox = h('textarea', { readonly: true, hidden: true, 'aria-label': 'Activity report' });
-  const reportMsg = h('div', { class: 'why' });
+  const report = reportCard(ctx);
 
   const status = () => {
     const s = ctx.ctl.snapshot();
@@ -51,10 +50,6 @@ export function settingsView(ctx, build) {
 
   const copy = async () => {
     try { await navigator.clipboard.writeText(exportBox.value); setText(dataMsg, 'Copied.'); } catch { exportBox.select(); setText(dataMsg, 'Copying is blocked: long-press the box, choose Select All, then Copy.'); }
-  };
-  const copyReport = async () => {
-    reportBox.value = ctx.buildReport();
-    try { await navigator.clipboard.writeText(reportBox.value); setText(reportMsg, 'Report copied. Paste it into the chat.'); reportBox.hidden = true; } catch { reportBox.hidden = false; reportBox.select(); setText(reportMsg, 'Copying is blocked: long-press the box below, choose Select All, then Copy.'); }
   };
   const download = () => {
     const blob = new Blob([exportBox.value], { type: 'application/json' });
@@ -86,7 +81,7 @@ export function settingsView(ctx, build) {
       dataMsg, h('div', { class: 'row' }, restore.el), h('div', { class: 'row' }, reset.el)),
     quarantineEl,
     h('section', { class: 'card' }, h('h2', {}, 'Recent activity'),
-      h('div', { class: 'row' }, h('button', { class: 'primary', onclick: copyReport }, 'Copy activity report')), reportBox, reportMsg, logEl),
+      report.el, logEl),
     h('div', { class: 'row' }, h('a', { class: 'btn', href: '#/' }, '← Back to workouts')));
   rebuildQuarantine();
 

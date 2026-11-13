@@ -1,8 +1,8 @@
 // The workout screen. Everything shown here comes from runView() (workout-vm.js), which is tested without a browser.
 import { h, setText, setDisabled } from '../dom.js?v=a1';
-import { connectionCard, checklistCard, twoStep, banner } from '../components.js?v=a1';
-import { runView, isActive } from '../workout-vm.js?v=a1';
-import { STATE } from '../../workout/engine.js?v=v4';
+import { connectionCard, checklistCard, twoStep, banner, reportCard } from '../components.js?v=a4';
+import { runView, isActive, closeFaultByHand } from '../workout-vm.js?v=a4';
+import { STATE } from '../../workout/engine.js?v=v5';
 
 const LOADABLE = [STATE.IDLE, STATE.READY, STATE.STOPPED, STATE.COMPLETED];
 
@@ -83,12 +83,22 @@ export function workoutView(ctx, id) {
   const resetBtn = h('button', { onclick: () => { const r = ctx.ctl.resetLock(); ctx.state.faultMsg = r.ok ? '' : `Not reset: ${r.reason}`; ctx.requestRender(); } }, 'Reset the lockout');
   const faultMsg = h('div', { class: 'why err' });
   const resetWhy = h('div', { class: 'why' });
+  // No connection means the app cannot see the belt. The user can say they stopped it by hand (remote or safety key).
+  const byHand = twoStep(ctx, {
+    label: 'I stopped the belt by hand: close this', armedLabel: 'TAP AGAIN: the belt is stopped', cls: 'danger',
+    warning: 'Only tap this if the belt has actually stopped. The app cannot see the belt without a connection, and this sends nothing. When you reconnect, the app checks the belt and locks out again if it is still moving. Tap again to close, or wait to cancel.',
+    onConfirm: () => { const r = closeFaultByHand(ctx.engine, ctx.ctl); ctx.log(r.ok ? 'Fault and lockout closed by the user (belt stopped by hand).' : `Not closed: ${r.reason}`); ctx.state.faultMsg = r.ok ? '' : `Not closed: ${r.reason}`; ctx.requestRender(); },
+  });
+  const byHandWhy = h('div', { class: 'why' }, 'Not connected: the belt cannot be checked from here. Stop it with the remote or safety key, then use this button. Or reconnect (Scan & connect) to stop it from here.');
+  const handBlock = h('div', {}, byHandWhy, byHand.el);
   const faultPanel = h('section', { class: 'card' }, h('h2', {}, 'After a problem'),
     h('div', { class: 'why' }, 'When the belt has stopped, close the fault, then reset the lockout. A new run needs a fresh start.'),
-    h('div', { class: 'row' }, ackBtn, resetBtn), resetWhy, faultMsg);
+    h('div', { class: 'row' }, ackBtn, resetBtn), resetWhy, handBlock, faultMsg);
+  const diagnostics = h('section', { class: 'card' }, h('h2', {}, 'Activity report'), reportCard(ctx).el,
+    h('div', { class: 'why' }, 'The activity log is also saved on this phone, so a page reload does not lose it.'));
   const backRow = h('div', { class: 'row' }, h('a', { class: 'btn', href: '#/' }, '← Back to workouts'));
 
-  const el = h('div', {}, bannerComp.el, pre.el, preflight, live, startPanel, controls, adjustPanel, recovery, faultPanel, backRow);
+  const el = h('div', {}, bannerComp.el, pre.el, preflight, live, startPanel, controls, adjustPanel, recovery, faultPanel, diagnostics, backRow);
   if (loadProblem) { pre.set({ level: 'danger', title: 'Cannot start', text: loadProblem }); }
 
   return {
@@ -142,6 +152,8 @@ export function workoutView(ctx, id) {
       ackBtn.hidden = !faulted;
       setDisabled(resetBtn, v.buttons.resetLock.why, v.buttons.resetLock.enabled);
       setText(resetWhy, v.buttons.resetLock.enabled ? '' : v.buttons.resetLock.why);
+      handBlock.hidden = !v.buttons.closeByHand.enabled;
+      if (handBlock.hidden) byHand.step.cancel();
       setText(faultMsg, ctx.state.faultMsg ?? '');
 
       backRow.hidden = active || faulted;

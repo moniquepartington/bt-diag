@@ -257,6 +257,21 @@ export class WorkoutEngine {
   }
 
   /**
+   * After a fault with NO connection the belt cannot be checked. This closes the workout on the user's word that they
+   * stopped the belt themselves (remote or safety key). Nothing is sent. When the app next connects, the controller
+   * checks the belt from its own readings and locks out again if it is moving, so a wrong tap cannot start anything.
+   */
+  acknowledgeFaultByUser() {
+    if (this.state !== STATE.FAULTED) return this._refuse('there is no fault to close');
+    if (this.ctl.snapshot().link) return this._refuse('the treadmill is connected: use the normal check, which reads the belt');
+    this.beltKnown = 'stopped';
+    this.state = STATE.STOPPED;
+    this._log('Fault closed on the user\'s word that the belt was stopped by hand (no connection to check). Nothing was sent.');
+    this._emit();
+    return { ok: true };
+  }
+
+  /**
    * Sends Start. From the moment it is sent the belt state is UNKNOWN until verified, so any failure or lockout that
    * interrupts it (even one raised before the command's own result arrives) reports the belt honestly. If the command
    * was never sent (a refusal), the previous belief is restored.

@@ -1,7 +1,7 @@
 // Reusable pieces shared by the screens. Each returns { el, update } where update() re-reads the live state.
 import { h, setText, setDisabled } from './dom.js?v=a1';
 import { wireTwoStep } from '../control/confirm.js?v=c8';
-import { SAFETY_REMINDER } from './workout-vm.js?v=a1';
+import { SAFETY_REMINDER } from './workout-vm.js?v=a4';
 
 export const safetyStrip = () => h('div', { class: 'strip' }, SAFETY_REMINDER);
 
@@ -58,6 +58,18 @@ export function checklistCard(ctx) {
   const boxes = labels.map((text, i) => h('input', { type: 'checkbox', onchange: (e) => ctx.setChecklist(i, e.target.checked) }));
   const el = h('section', { class: 'card' }, h('h2', {}, 'Safety checklist'), ...labels.map((text, i) => h('label', { class: 'chk' }, boxes[i], text)));
   return { el, update() { boxes.forEach((b, i) => { if (b.checked !== ctx.state.checklist[i]) b.checked = ctx.state.checklist[i]; }); } };
+}
+
+/** "Copy activity report": the diagnostic report (including earlier page loads saved on this phone). */
+export function reportCard(ctx) {
+  const box = h('textarea', { readonly: true, hidden: true, 'aria-label': 'Activity report' });
+  const msg = h('div', { class: 'why' });
+  const copy = async () => {
+    box.value = ctx.buildReport();
+    try { await navigator.clipboard.writeText(box.value); setText(msg, 'Report copied. Paste it into the chat.'); box.hidden = true; } catch { box.hidden = false; box.select(); setText(msg, 'Copying is blocked: long-press the box below, choose Select All, then Copy.'); }
+  };
+  const el = h('div', {}, h('div', { class: 'row' }, h('button', { class: 'primary', onclick: copy }, 'Copy activity report')), box, msg);
+  return { el };
 }
 
 export { setText, setDisabled };

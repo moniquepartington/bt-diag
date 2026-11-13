@@ -1,10 +1,10 @@
 // Dashboard: connection, safety checklist, and the saved workouts.
 import { h, clear } from '../dom.js?v=a1';
-import { connectionCard, checklistCard, twoStep, banner } from '../components.js?v=a1';
+import { connectionCard, checklistCard, twoStep, banner } from '../components.js?v=a4';
 import { formatDuration } from '../format.js?v=a1';
 import { summary } from '../editor-model.js?v=a1';
-import { isActive } from '../workout-vm.js?v=a1';
-import { STATE } from '../../workout/engine.js?v=v4';
+import { isActive } from '../workout-vm.js?v=a4';
+import { STATE } from '../../workout/engine.js?v=v5';
 
 export function dashboardView(ctx) {
   const conn = connectionCard(ctx);

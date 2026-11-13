@@ -86,3 +86,19 @@ No faults, no lockouts, no refusals, no page-hidden events. The user confirmed e
 **First Start attempt cancelled by a Stop tap (no motor command was sent).** At 91 s the user tapped Start: take control was sent and acknowledged, and during its 6 s watch window a harmless "stopped" status (02 01) arrived, then a tap on "Stop workout" ended the attempt (the report line "Stop: OK" only comes from that button). The belt never moved and no motion command was sent; the second attempt (take control already held) started normally 4.2 s after the Start command. The user later confirmed the cause was operator error: the treadmill was not switched on at that moment, so the Stop tap was deliberate and the app behaved correctly. No layout concern.
 
 Still not verified on hardware: locked or backgrounded phone, deliberate disconnect and recovery inside the app, walking out of range, speed or incline changed from the remote during a workout.
+
+## Hardware check 3 (build a3): tab switch and Bluetooth off during a run
+
+Reported by the user (the activity report was lost, see below):
+
+- The run screen deliberately hides the connection card while a workout is active, so there was no Disconnect button. The fault was created by opening another tab (page hidden), which faulted the run as designed, and recovery worked.
+- With Bluetooth turned off on the phone during a run, **the belt kept running at its last speed** (as already known). The user stopped it with the remote.
+- The page then reloaded, so the in-memory activity log of that run was lost. The fault screen also offered no way to copy the report, and the lockout/fault can only be closed from the treadmill's own readings, which need a connection.
+
+## Build a4 (prepared after hardware check 3; simulator and desktop browser only)
+
+- The activity log and readings are saved on the phone as they happen. After a reload, the report includes the last two earlier page loads that did something (a load with only start-up lines is ignored), with readings reduced to changes and gaps.
+- "Copy activity report" is on the workout screen as well as in Settings.
+- With no connection, a two-tap button "I stopped the belt by hand: close this" closes the fault and lockout on the user's word. It sends nothing and is unavailable while connected. Reconnecting after a wrong tap is caught by the controller (belt moving, nothing started by the app), which locks out again and offers recovery.
+- 229 tests pass (11 new). Mutation checks: removing the connected-refusal and removing the minimum-size rule for saved logs each fail a test.
+- Known small oddity: after a hand-close, the log line "Treating the belt as running" comes from stale readings; it is replaced by the real state at the next connect.
