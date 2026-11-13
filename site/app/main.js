@@ -5,7 +5,7 @@ import { Controller } from '../control/controller.js?v=c8';
 import { WorkoutEngine, STATE } from '../workout/engine.js?v=v5';
 import { VERIFIED_LIMITS } from '../workout/limits.js?v=l2';
 import { WorkoutLibrary } from './storage.js?v=a1';
-import { BleSession } from './session.js?v=a2';
+import { BleSession } from './session.js?v=a5';
 import { ScreenWake } from './wakelock.js?v=a1';
 import { isActive } from './workout-vm.js?v=a4';
 import { buildReport, PacketLog } from './report.js?v=a4';
@@ -15,9 +15,9 @@ import { safetyStrip } from './components.js?v=a4';
 import { dashboardView } from './views/dashboard.js?v=a1';
 import { editorView } from './views/editor.js?v=a1';
 import { workoutView } from './views/workout.js?v=a4';
-import { settingsView } from './views/settings.js?v=a4';
+import { settingsView } from './views/settings.js?v=a5';
 
-const BUILD = 'a4';
+const BUILD = 'a5';
 const view = document.getElementById('view');
 const clock = { now: () => performance.now(), setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id) };
 

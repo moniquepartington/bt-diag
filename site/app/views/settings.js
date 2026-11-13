@@ -9,12 +9,15 @@ const VERIFIED = [
   'Starting: about a 3-second countdown, then the belt runs at its minimum speed. A restart after a stop also begins at the minimum.',
   'Speed and incline changes are acknowledged in about 0.1 second and show in the readings within about a second.',
   'Stopping: the belt slows over about 2 to 9 seconds (longer from higher speeds) and the incline returns to 0.',
-  'If Bluetooth drops, the belt keeps running at its last speed and incline until someone stops it. After reconnecting, the app must take control again before it can stop the belt.',
+  'Full 20-minute workouts: every interval change lands within about a second of the plan, and the belt stops at the end.',
+  'If Bluetooth drops (turned off, or out of range), or the phone is locked or the page left during a run, the app stops sending, freezes the clock and shows a fault within about a second. The belt keeps running at its last speed: stop it with the remote, then close the fault on the screen.',
+  'A phone lock of a minute or more does not drop the Bluetooth link; readings pause while locked and resume on unlock.',
+  'The remote\'s Stop key during a run pauses the workout; Resume restarts it. Speed or incline changed from the remote is put back to the plan at the next interval change (it is not noticed before then).',
 ];
 const NOT_TESTED = [
-  'What a locked or backgrounded phone does to a workout.',
-  'A full 20-minute run on the treadmill, and losing the connection by walking out of range.',
-  'Speed or incline changed from the treadmill\'s own remote during a workout (the app does not detect it).',
+  'Any run with a person on the belt: every test so far had an empty belt.',
+  'Pulling the treadmill\'s safety key during a run.',
+  'Runs longer than 20 minutes.',
 ];
 
 export function settingsView(ctx, build) {

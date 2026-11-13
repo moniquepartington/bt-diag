@@ -158,3 +158,7 @@ Still true: the app does not detect remote speed or incline changes during an in
 ### New observation: a lockout at connect with a stopped belt
 
 In the saved log of the previous run (test 2), reconnecting at 459 s produced the lockout "BELT ACTIVE UNEXPECTEDLY" 0.6 s after connecting, before the first speed reading. The first reading (460.7 s) was 0 km/h, status 1 (idle), and a harmless "stopped" machine status (02 01) followed. So the treadmill's training-status value read at connect most probably still said "running" (stale) about 80 s after the belt was stopped by hand, or the belt had only just come to rest. The app failed safe (locked out), and the lockout could be reset a few seconds later once the readings confirmed the belt stopped. The cause is not proven because the log does not record the value read. Build a5 should log it.
+
+## Build a5
+
+Settings "Verified" and "Not tested yet" lists updated to today's hardware results; the status value read at connect is now written to the activity log (diagnostics only, to explain the connect-time lockout seen once). No safety logic changed. 230 tests pass.

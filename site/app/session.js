@@ -68,6 +68,7 @@ export class BleSession {
       this.ranges = { speed: { minKmh: speed.minKmh, maxKmh: speed.maxKmh }, incline: { minPct: incline.minPct, maxPct: incline.maxPct } };
       ctl.connected(this.ranges);
       const t = parseTrainingStatus(await training.readValue());
+      this.onLog(`Treadmill status read at connect: ${t.code == null ? 'none' : `0x${t.code.toString(16)}`}.`); // diagnostics only (hardware check 7 saw a lockout right at connect)
       if (t.code != null) ctl.feedTraining(t.code);
       this.deviceName = this.device.name ?? 'treadmill';
       this.onLog('Connected to the treadmill.'); // the device name stays out of the log, so copied reports carry no identifiers
