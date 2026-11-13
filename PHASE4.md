@@ -102,3 +102,16 @@ Reported by the user (the activity report was lost, see below):
 - With no connection, a two-tap button "I stopped the belt by hand: close this" closes the fault and lockout on the user's word. It sends nothing and is unavailable while connected. Reconnecting after a wrong tap is caught by the controller (belt moving, nothing started by the app), which locks out again and offers recovery.
 - 229 tests pass (11 new). Mutation checks: removing the connected-refusal and removing the minimum-size rule for saved logs each fail a test.
 - Known small oddity: after a hand-close, the log line "Treating the belt as running" comes from stale readings; it is replaced by the real state at the next connect.
+
+## Hardware check 4 (build a4, belt empty, "Check run", Bluetooth turned off mid-run): PASSED
+
+| Item | Result |
+|---|---|
+| Link loss | Detected at 59.3 s, 0.9 s after the last reading (58.4 s), 16 s into the run. The run faulted at once: CONNECTION LOST, lockout, nothing sent afterwards. |
+| Belt | Kept running at its last speed (1.61 km/h, 1 mph), as before. The user stopped it with the remote. |
+| Fault screen | Showed the belt as possibly running at about 1 mph; the workout clock froze at 15.9 s. |
+| Hand-close | Tapped 52 s later (belt already stopped by hand): fault and lockout closed, run ended as STOPPED, nothing sent. |
+| Report | Copied from the run screen after the fault, as intended; no device identifiers. |
+| Wake lock | Released at the moment of the fault, so the screen may sleep during a fault (not a safety issue; the remote is the real stop). |
+
+Not yet checked on hardware: that the saved log survives a page reload (this run had no reload, so `previousSessions` was empty). Checked in the simulator and desktop browser only.
